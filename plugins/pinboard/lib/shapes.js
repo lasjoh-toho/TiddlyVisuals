@@ -138,6 +138,9 @@ methods.buildShape = function(shape) {
 		g.appendChild(this.buildShapeText(shape));
 	}
 	g.appendChild(hit);
+	if (shape.rot && Model.isBoxType(shape.type)) {
+		g.setAttribute("transform", "rotate(" + shape.rot + " " + (shape.x + shape.w / 2) + " " + (shape.y + shape.h / 2) + ")");
+	}
 	return g;
 };
 
@@ -175,9 +178,15 @@ methods.renderSelection = function() {
 		return;
 	}
 	var inv = 1 / this.camera.s;
-	var b = Model.shapeBounds(shape);
+	var box = Model.isBoxType(shape.type);
+	// Box shapes are outlined in their own (rotated) frame.
+	var b = box ? {x: shape.x, y: shape.y, w: shape.w, h: shape.h} : Model.shapeBounds(shape);
+	var group = Dom.svg(doc, "g", box && shape.rot ? {
+		transform: "rotate(" + shape.rot + " " + (b.x + b.w / 2) + " " + (b.y + b.h / 2) + ")"
+	} : null);
+	this.uiLayer.appendChild(group);
 	var pad = 4 * inv;
-	this.uiLayer.appendChild(Dom.svg(doc, "rect", {
+	group.appendChild(Dom.svg(doc, "rect", {
 		"class": "pb-selection-box",
 		x: b.x - pad, y: b.y - pad, width: b.w + 2 * pad, height: b.h + 2 * pad,
 		"stroke-width": 1.5 * inv,
@@ -194,9 +203,23 @@ methods.renderSelection = function() {
 				["nw", b.x - pad, b.y - pad], ["ne", b.x + b.w + pad, b.y - pad],
 				["sw", b.x - pad, b.y + b.h + pad], ["se", b.x + b.w + pad, b.y + b.h + pad]];
 		}
+		if (box) {
+			var top = b.y - pad - 26 * inv;
+			group.appendChild(Dom.svg(doc, "line", {
+				"class": "pb-rotate-stem",
+				x1: b.x + b.w / 2, y1: b.y - pad, x2: b.x + b.w / 2, y2: top,
+				"stroke-width": 1.5 * inv
+			}));
+			group.appendChild(Dom.svg(doc, "circle", {
+				"class": "pb-handle pb-handle-rot",
+				"data-pb-handle": "rot",
+				cx: b.x + b.w / 2, cy: top, r: 6.5 * inv,
+				"stroke-width": 1.5 * inv
+			}));
+		}
 		for (var i = 0; i < handles.length; i++) {
 			var h = handles[i];
-			this.uiLayer.appendChild(Dom.svg(doc, "rect", {
+			group.appendChild(Dom.svg(doc, "rect", {
 				"class": "pb-handle pb-handle-" + h[0],
 				"data-pb-handle": h[0],
 				x: h[1] - size / 2, y: h[2] - size / 2, width: size, height: size,
@@ -485,24 +508,43 @@ methods.startHandleGesture = function(start, handleEl) {
 	}
 	var handle = handleEl.getAttribute("data-pb-handle");
 	var original = JSON.parse(JSON.stringify(shape));
-	var from = Model.shapeBounds(original);
+	var box = Model.isBoxType(shape.type);
+	var from = box ? {x: original.x, y: original.y, w: original.w, h: original.h} : Model.shapeBounds(original);
+	var rot = box ? (original.rot || 0) : 0;
+	var center = {x: from.x + from.w / 2, y: from.y + from.h / 2};
 	return {
 		kind: "handle",
 		start: start,
 		capture: true,
 		onStart: function() { this.checkpoint(); },
 		onMove: function(g, world, event) {
-			var dx = world.x - start.world.x, dy = world.y - start.world.y;
 			copyGeometry(shape, original);
-			if (handle === "p0" || handle === "p1") {
+			if (handle === "rot") {
+				var a0 = Math.atan2(start.world.y - center.y, start.world.x - center.x);
+				var a1 = Math.atan2(world.y - center.y, world.x - center.x);
+				var angle = rot + (a1 - a0) * 180 / Math.PI;
+				if (event.shiftKey) {
+					angle = Math.round(angle / 15) * 15;
+				} else if (Math.abs(Model.normalizeAngle(angle)) < 3) {
+					angle = 0;
+				}
+				angle = Model.normalizeAngle(angle);
+				if (angle) {
+					shape.rot = angle;
+				} else {
+					delete shape.rot;
+				}
+			} else if (handle === "p0" || handle === "p1") {
 				var i = handle === "p0" ? 0 : shape.points.length - 1;
-				shape.points[i] = [Model.round(original.points[i][0] + dx), Model.round(original.points[i][1] + dy)];
+				shape.points[i] = [Model.round(original.points[i][0] + world.x - start.world.x), Model.round(original.points[i][1] + world.y - start.world.y)];
 			} else {
+				// Work in the shape's own (unrotated) frame.
+				var d = rotatePoint(world.x - start.world.x, world.y - start.world.y, -rot);
 				var to = {x: from.x, y: from.y, w: from.w, h: from.h};
-				if (handle.indexOf("w") >= 0) { to.x += dx; to.w -= dx; }
-				if (handle.indexOf("e") >= 0) { to.w += dx; }
-				if (handle.indexOf("n") >= 0) { to.y += dy; to.h -= dy; }
-				if (handle.indexOf("s") >= 0) { to.h += dy; }
+				if (handle.indexOf("w") >= 0) { to.x += d.x; to.w -= d.x; }
+				if (handle.indexOf("e") >= 0) { to.w += d.x; }
+				if (handle.indexOf("n") >= 0) { to.y += d.y; to.h -= d.y; }
+				if (handle.indexOf("s") >= 0) { to.h += d.y; }
 				if (event.shiftKey && from.w > 0 && from.h > 0) {
 					// Keep proportions.
 					var ratio = from.w / from.h;
@@ -512,6 +554,14 @@ methods.startHandleGesture = function(start, handleEl) {
 					if (handle.indexOf("n") >= 0) { to.y = from.y + from.h - nh; }
 					to.w = nw; to.h = nh;
 				}
+				if (rot) {
+					// Keep the opposite corner where it is on the board.
+					to = Model.normalizeRect(to);
+					var ax = handle.indexOf("w") >= 0 ? 1 : 0, ay = handle.indexOf("n") >= 0 ? 1 : 0;
+					var before = cornerOnBoard(from, ax, ay, rot), after = cornerOnBoard(to, ax, ay, rot);
+					to.x += before.x - after.x;
+					to.y += before.y - after.y;
+				}
 				Model.resizeShape(shape, from, to);
 			}
 			this.updateShapeEl(shape);
@@ -520,10 +570,30 @@ methods.startHandleGesture = function(start, handleEl) {
 		onEnd: function() { this.commit(); },
 		onCancel: function() {
 			copyGeometry(shape, original);
+			if (original.rot) {
+				shape.rot = original.rot;
+			} else {
+				delete shape.rot;
+			}
 			this.renderShapes();
 		}
 	};
 };
+
+function rotatePoint(x, y, deg) {
+	var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+	return {x: x * c - y * s, y: x * s + y * c};
+}
+
+/*
+Board position of a corner (ax, ay in 0/1) of a rectangle rotated by
+`rot` around its center.
+*/
+function cornerOnBoard(rect, ax, ay, rot) {
+	var cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+	var p = rotatePoint(rect.x + ax * rect.w - cx, rect.y + ay * rect.h - cy, rot);
+	return {x: cx + p.x, y: cy + p.y};
+}
 
 methods.startEraseGesture = function(start) {
 	var erased = false;

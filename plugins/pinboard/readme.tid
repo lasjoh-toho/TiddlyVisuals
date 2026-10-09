@@ -44,6 +44,14 @@ Selected shapes can be recolored, re-sized, duplicated (Ctrl+D), moved with the 
 
 !! Presenting
 
-Frames join the presentation path automatically. Cards, shapes and the current view can be added from the selection bar or the path panel (list icon, top right), where stops are reordered. ▶ starts the presentation: fullscreen, camera flights between stops, arrows/Space/clicks at the screen edges to move, `O` for an overview, Esc to leave.
+Frames join the presentation path automatically. Cards, shapes and the current view can be added from their tools (target icon) or the path panel (list icon, top right), where stops are reordered. ▶ starts the presentation: fullscreen, camera flights between stops.
+
+* ''Tilted stops'': rotate a frame (or any box shape) with the round handle above it (Shift: 15° steps). The camera turns with it on arrival.
+* ''Appear / disappear'': the eye icon on a shape or card picks the stop at which it appears and the stop at which it disappears.
+* ''Reveals'': shapes lying on top of a card or shape vanish while the presentation shows what they cover, so a sticky note can hide an answer until its stop.
+* ''Progress stack'': hover the counter at the bottom to see every stop as a bar (the last on top). Hover a bar for a live preview, click to jump.
+* ''Pen'': the pen at the bottom left (or `P`) writes temporary notes on top of the presentation: pen, highlighter, text, eraser, colors, size, clear. Notes zoom with the board and are not saved.
+* Keys: arrows/Space/Enter, Home/End, `O` overview, `F` fullscreen, `P` pen, Esc to leave. Clicks at the left/right screen edges step back and forth; drag and wheel explore freely.
+* ''Export as HTML'' (path panel) downloads a single self-contained file that plays the presentation in any browser, without TiddlyWiki. It uses the very same player.
 
 Messages for buttons inside the graph: `graph-pinboard-present` (optional `step`), `graph-pinboard-fit`, `graph-pinboard-open` (`tiddler`), `graph-center-node` (`tiddler`), `graph-move-view` (`x`, `y`, `scale`, `scaleBy`).

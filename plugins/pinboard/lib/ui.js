@@ -181,6 +181,11 @@ methods.renderContextBar = function() {
 		buttons.push(Dom.button(doc, "target", "Add to presentation path", function() {
 			self.addStep({kind: shape.type === "frame" ? "frame" : "shape", ref: shape.id});
 		}));
+		if (shape.type !== "frame") {
+			buttons.push(Dom.button(doc, "eye", "Appear / disappear during the presentation", function() {
+				self.openEffects("s:" + shape.id);
+			}, shape.build || shape.exit ? "pb-active" : ""));
+		}
 		buttons.push(Dom.button(doc, "plus", "Duplicate (Ctrl+D)", function() { self.duplicateSelection(); }));
 		buttons.push(Dom.button(doc, "trash", "Delete (Del)", function() { self.deleteSelection(); }));
 	} else {
@@ -202,8 +207,6 @@ methods.positionContextBar = function() {
 	if (sel.type === "shape") {
 		var shape = this.selectedShape();
 		rect = shape && Model.shapeBounds(shape);
-	} else if (sel.type === "card") {
-		rect = this.cardRect(sel.id);
 	}
 	if (!rect) {
 		bar.style.display = "none";
@@ -212,7 +215,9 @@ methods.positionContextBar = function() {
 	var p = this.toScreen(rect.x + rect.w / 2, rect.y);
 	var size = this.viewSize();
 	var width = bar.offsetWidth || 160;
-	var top = p.y - 48 - (sel.type === "card" ? 30 : 0);
+	// Leave room for the rotate handle above box shapes.
+	var shapeAbove = sel.type === "shape" && Model.isBoxType((this.selectedShape() || {}).type);
+	var top = p.y - 48 - (shapeAbove ? 40 : 0);
 	if (top < 8) {
 		top = this.toScreen(0, rect.y + rect.h).y + 12;
 	}
@@ -260,20 +265,6 @@ methods.stepTitle = function(step) {
 	return step.kind;
 };
 
-methods.stepRect = function(step) {
-	switch (step.kind) {
-	case "frame":
-	case "shape":
-		var shape = Model.findShape(this.data, step.ref);
-		return shape ? Model.shapeBounds(shape) : null;
-	case "card":
-		return this.cardRect(step.ref);
-	case "view":
-		return {x: step.x, y: step.y, w: step.w, h: step.h};
-	}
-	return null;
-};
-
 methods.stepPadding = function(step) {
 	return step.kind === "frame" || step.kind === "view" ? 0.01 : 0.1;
 };
@@ -290,7 +281,7 @@ methods.renderSteps = function() {
 	var steps = this.data.steps;
 	var list = Dom.el(doc, "ol", {"class": "pb-step-list"});
 	steps.forEach(function(step, index) {
-		var missing = !self.stepRect(step);
+		var missing = !self.stepTarget(step);
 		var move = function(delta) {
 			var to = index + delta;
 			if (to < 0 || to >= steps.length) {
@@ -304,8 +295,8 @@ methods.renderSteps = function() {
 		list.appendChild(Dom.el(doc, "li", {"class": "pb-step" + (missing ? " pb-missing" : "") + (self.presenting && self.presentIndex === index ? " pb-current" : "")}, [
 			Dom.el(doc, "button", {"class": "pb-step-name", type: "button", title: "Show this step",
 				onclick: function() {
-					var rect = self.stepRect(step);
-					rect && self.flyTo(rect, self.stepPadding(step));
+					var target = self.stepTarget(step);
+					target && self.flyTo(target.rect, self.stepPadding(step), true, target.rot);
 				}}, [
 				Dom.el(doc, "span", {"class": "pb-step-kind pb-step-kind-" + step.kind, text: String(index + 1)}),
 				Dom.el(doc, "span", {"class": "pb-step-title", text: self.stepTitle(step)})
@@ -335,6 +326,15 @@ methods.renderSteps = function() {
 				}}),
 			Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "+ Frame",
 				onclick: function() { self.setTool("frame"); }})
+		]));
+	}
+	if (steps.length > 0) {
+		panel.appendChild(Dom.el(doc, "div", {"class": "pb-popup-foot"}, [
+			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-primary", type: "button", text: "\u25b6 Present",
+				onclick: function() { self.startPresentation(0); }}),
+			Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "Export as HTML",
+				title: "Download a self-contained HTML file that plays this presentation anywhere",
+				onclick: function() { self.downloadPresentation(); }})
 		]));
 	}
 };
@@ -493,4 +493,74 @@ methods.closeModal = function() {
 			this.root.focus({preventScroll: true});
 		}
 	}
+};
+
+/*** Build and exit effects ***/
+
+methods.effectsEntry = function(key, create) {
+	var id = key.substr(2);
+	if (key.charAt(0) === "s") {
+		return Model.findShape(this.data, id);
+	}
+	if (!this.data.cards[id] && create) {
+		this.data.cards[id] = {};
+	}
+	return this.data.cards[id] || null;
+};
+
+methods.openEffects = function(key) {
+	this.closeChooser();
+	this.closeEffects();
+	this.effects = {key: key, el: Dom.el(this.document, "div", {"class": "pb-popup pb-effects pb-chrome"})};
+	this.root.appendChild(this.effects.el);
+	this.renderEffects();
+	this.positionPopups();
+};
+
+methods.closeEffects = function() {
+	if (this.effects) {
+		Dom.remove(this.effects.el);
+		this.effects = null;
+	}
+};
+
+methods.renderEffects = function() {
+	var self = this, doc = this.document;
+	var key = this.effects.key;
+	var entry = this.effectsEntry(key, false) || {};
+	var steps = this.data.steps;
+	var el = this.effects.el;
+	var select = function(field, noneLabel) {
+		var sel = Dom.el(doc, "select", {"class": "pb-select"});
+		sel.appendChild(Dom.el(doc, "option", {value: "", text: noneLabel}));
+		steps.forEach(function(step, i) {
+			sel.appendChild(Dom.el(doc, "option", {value: step.id, text: (i + 1) + " \u00b7 " + self.stepTitle(step)}));
+		});
+		sel.value = entry[field] && steps.some(function(s) { return s.id === entry[field]; }) ? entry[field] : "";
+		sel.addEventListener("change", function() {
+			self.checkpoint();
+			var target = self.effectsEntry(key, true);
+			if (sel.value) {
+				target[field] = sel.value;
+			} else {
+				delete target[field];
+			}
+			self.commit();
+			self.renderEffects();
+		});
+		return sel;
+	};
+	Dom.clear(el);
+	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-head"}, [
+		Dom.el(doc, "strong", {text: "During the presentation"}),
+		Dom.button(doc, "close", "Close", function() { self.closeEffects(); }, "pb-btn-small")
+	]));
+	if (steps.length === 0) {
+		el.appendChild(Dom.el(doc, "p", {"class": "pb-empty", text: "Add stops to the presentation path first."}));
+		return;
+	}
+	el.appendChild(Dom.el(doc, "label", {"class": "pb-field-row"}, ["Appears at", select("build", "From the start")]));
+	el.appendChild(Dom.el(doc, "label", {"class": "pb-field-row"}, ["Disappears at", select("exit", "Never")]));
+	el.appendChild(Dom.el(doc, "p", {"class": "pb-empty",
+		text: "Shapes lying on top of a card or shape also vanish while the presentation shows what they cover."}));
 };

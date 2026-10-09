@@ -124,6 +124,19 @@ exports.normalizeDoc = function(doc) {
 	return out;
 };
 
+/*
+"build" and "exit" name the presentation step at which an object appears
+or disappears.
+*/
+function copyEffects(from, to) {
+	if (typeof from.build === "string" && from.build) {
+		to.build = from.build;
+	}
+	if (typeof from.exit === "string" && from.exit) {
+		to.exit = from.exit;
+	}
+}
+
 function normalizeCard(card) {
 	if (!card || typeof card !== "object") {
 		return null;
@@ -138,6 +151,7 @@ function normalizeCard(card) {
 	if (typeof card.fields === "string") {
 		out.fields = card.fields;
 	}
+	copyEffects(card, out);
 	return out;
 }
 
@@ -180,6 +194,13 @@ exports.normalizeShape = function(shape) {
 	if (fontSize > 0) {
 		out.fontSize = fontSize;
 	}
+	if (BOX_TYPES[type]) {
+		var rot = exports.normalizeAngle(num(shape.rot, 0));
+		if (rot) {
+			out.rot = rot;
+		}
+	}
+	copyEffects(shape, out);
 	return out;
 };
 
@@ -301,9 +322,23 @@ exports.unionRects = function(rects) {
 	return {x: minX, y: minY, w: maxX - minX, h: maxY - minY};
 };
 
+exports.normalizeAngle = function(deg) {
+	deg = ((deg % 360) + 540) % 360 - 180;
+	return Math.round(deg * 10) / 10 || 0;
+};
+
+/*
+Axis-aligned bounds. Box shapes may be rotated around their center.
+*/
 exports.shapeBounds = function(shape) {
 	if (BOX_TYPES[shape.type]) {
-		return {x: shape.x, y: shape.y, w: shape.w, h: shape.h};
+		if (!shape.rot) {
+			return {x: shape.x, y: shape.y, w: shape.w, h: shape.h};
+		}
+		var cx = shape.x + shape.w / 2, cy = shape.y + shape.h / 2;
+		var a = shape.rot * Math.PI / 180, c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
+		var w = shape.w * c + shape.h * sn, h = shape.w * sn + shape.h * c;
+		return {x: cx - w / 2, y: cy - h / 2, w: w, h: h};
 	}
 	var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 	for (var i = 0; i < shape.points.length; i++) {
@@ -410,92 +445,13 @@ exports.clipToRect = function(rect, tx, ty, margin) {
 	return {x: cx + dx * scale, y: cy + dy * scale};
 };
 
-/*** Camera ***/
+/*** Camera (see camera.js) ***/
 
-/*
-A camera is {x, y, s}: screen = world * s + (x, y).
-*/
-exports.fitRect = function(rect, viewW, viewH, padding, maxScale) {
-	padding = padding === undefined ? 0.08 : padding;
-	var w = Math.max(rect.w, 1), h = Math.max(rect.h, 1);
-	var s = Math.min(viewW * (1 - 2 * padding) / w, viewH * (1 - 2 * padding) / h);
-	if (maxScale) {
-		s = Math.min(s, maxScale);
-	}
-	s = Math.max(s, 0.02);
-	return {
-		s: s,
-		x: viewW / 2 - (rect.x + rect.w / 2) * s,
-		y: viewH / 2 - (rect.y + rect.h / 2) * s
-	};
-};
-
-exports.viewRect = function(camera, viewW, viewH) {
-	return {
-		x: -camera.x / camera.s,
-		y: -camera.y / camera.s,
-		w: viewW / camera.s,
-		h: viewH / camera.s
-	};
-};
-
-exports.zoomAt = function(camera, factor, sx, sy, minScale, maxScale) {
-	var s = Math.min(maxScale || 8, Math.max(minScale || 0.05, camera.s * factor));
-	var k = s / camera.s;
-	return {s: s, x: sx - (sx - camera.x) * k, y: sy - (sy - camera.y) * k};
-};
-
-function cosh(x) { return ((x = Math.exp(x)) + 1 / x) / 2; }
-function sinh(x) { return ((x = Math.exp(x)) - 1 / x) / 2; }
-function tanh(x) { return ((x = Math.exp(2 * x)) - 1) / (x + 1); }
-
-/*
-Smooth zoom-and-pan between two cameras, after van Wijk & Nuij,
-"Smooth and efficient zooming and panning" (2003). The camera zooms out
-while travelling and in again on arrival, which is what gives presentations
-their "flying over the board" feeling.
-
-Returns a function t (0..1) -> camera, with a suggested `duration` in ms.
-*/
-exports.interpolateCamera = function(from, to, viewW, viewH, rho) {
-	rho = rho || 1.4;
-	var rho2 = rho * rho, rho4 = rho2 * rho2;
-	// Convert to (center x, center y, visible width) in world units.
-	var ux0 = (viewW / 2 - from.x) / from.s, uy0 = (viewH / 2 - from.y) / from.s, w0 = viewW / from.s;
-	var ux1 = (viewW / 2 - to.x) / to.s, uy1 = (viewH / 2 - to.y) / to.s, w1 = viewW / to.s;
-	var dx = ux1 - ux0, dy = uy1 - uy0, d2 = dx * dx + dy * dy;
-	var S, at;
-	if (d2 < 1e-12) {
-		S = Math.log(w1 / w0) / rho;
-		at = function(t) {
-			return [ux0 + t * dx, uy0 + t * dy, w0 * Math.exp(rho * t * S)];
-		};
-	} else {
-		var d1 = Math.sqrt(d2),
-			b0 = (w1 * w1 - w0 * w0 + rho4 * d2) / (2 * w0 * rho2 * d1),
-			b1 = (w1 * w1 - w0 * w0 - rho4 * d2) / (2 * w1 * rho2 * d1),
-			r0 = Math.log(Math.sqrt(b0 * b0 + 1) - b0),
-			r1 = Math.log(Math.sqrt(b1 * b1 + 1) - b1);
-		S = (r1 - r0) / rho;
-		at = function(t) {
-			var s = t * S,
-				coshr0 = cosh(r0),
-				u = w0 / (rho2 * d1) * (coshr0 * tanh(rho * s + r0) - sinh(r0));
-			return [ux0 + u * dx, uy0 + u * dy, w0 * coshr0 / cosh(rho * s + r0)];
-		};
-	}
-	var fn = function(t) {
-		if (t >= 1) {
-			return {x: to.x, y: to.y, s: to.s};
-		}
-		var p = at(t);
-		var s = viewW / p[2];
-		return {s: s, x: viewW / 2 - p[0] * s, y: viewH / 2 - p[1] * s};
-	};
-	var duration = Math.abs(S) * 1000 * rho / Math.SQRT2;
-	fn.duration = isFinite(duration) ? Math.min(2400, Math.max(500, duration)) : 500;
-	return fn;
-};
+var Camera = require("./camera.js");
+exports.fitRect = Camera.fitRect;
+exports.viewRect = Camera.viewRect;
+exports.zoomAt = Camera.zoomAt;
+exports.interpolateCamera = Camera.interpolate;
 
 /*** Colors ***/
 

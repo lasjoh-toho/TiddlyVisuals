@@ -21,6 +21,7 @@ images) at every zoom level.
 "use strict";
 
 var Model = require("./lib/model.js");
+var Camera = require("./lib/camera.js");
 var Dom = require("./lib/dom.js");
 
 exports.name = "Pinboard";
@@ -119,7 +120,7 @@ exports.init = function(element, objects, options) {
 	this.nodes = Object.create(null);
 	this.edges = Object.create(null);
 	this.cards = Object.create(null);
-	this.camera = {x: 0, y: 0, s: 1};
+	this.camera = {x: 0, y: 0, s: 1, r: 0};
 	this.tool = "select";
 	this.style = {stroke: "#1f2937", fill: "none", width: 3};
 	this.selection = null;
@@ -145,8 +146,9 @@ exports.destroy = function() {
 	this.flushSave();
 	this.destroyed = true;
 	this.wiki.removeEventListener("change", this.onWikiChange);
-	this.stopPresentation && this.presenting && this.stopPresentation();
+	this.presenting && this.stopPresentation();
 	this.closeModal && this.closeModal();
+	this.closeEffects && this.closeEffects();
 	for (var id in this.cards) {
 		this.removeCard(id);
 	}
@@ -454,10 +456,11 @@ exports.setCamera = function(camera) {
 	this.camera = {
 		x: camera.x,
 		y: camera.y,
-		s: Math.min(MAX_SCALE, Math.max(MIN_SCALE, camera.s))
+		s: Math.min(MAX_SCALE, Math.max(MIN_SCALE, camera.s)),
+		r: camera.r || 0
 	};
 	var c = this.camera;
-	this.world.style.transform = "translate(" + c.x + "px," + c.y + "px) scale(" + c.s + ")";
+	this.world.style.transform = Camera.transform(c);
 	this.root.style.setProperty("--pb-inv", String(1 / c.s));
 	var grid = 24 * c.s;
 	while (grid < 12) {
@@ -502,9 +505,9 @@ exports.animateCamera = function(target, duration, done) {
 	this.cameraAnimation = this.window.requestAnimationFrame(step);
 };
 
-exports.flyTo = function(rect, padding, animate) {
+exports.flyTo = function(rect, padding, animate, rot) {
 	var size = this.viewSize();
-	var target = Model.fitRect(rect, size.w, size.h, padding, MAX_SCALE);
+	var target = Model.fitRect(rect, size.w, size.h, padding, MAX_SCALE, rot || 0);
 	if (animate === false) {
 		this.setCamera(target);
 	} else {
@@ -530,7 +533,7 @@ exports.fitAll = function(animate) {
 		this.flyTo(bounds, 0.06, animate);
 	} else {
 		var size = this.viewSize();
-		this.setCamera({x: size.w / 2, y: size.h / 2, s: 1});
+		this.setCamera({x: size.w / 2, y: size.h / 2, s: 1, r: 0});
 	}
 };
 
@@ -543,7 +546,7 @@ exports.initialView = function() {
 		}
 		self.renderNow();
 		if (self.data.view) {
-			self.setCamera({x: self.data.view.x, y: self.data.view.y, s: self.data.view.scale});
+			self.setCamera({x: self.data.view.x, y: self.data.view.y, s: self.data.view.scale, r: 0});
 		} else {
 			self.fitAll(false);
 			if (self.camera.s > 1) {
@@ -566,14 +569,11 @@ exports.zoomBy = function(factor, sx, sy) {
 
 exports.toWorld = function(clientX, clientY) {
 	var rect = this.viewport.getBoundingClientRect();
-	return {
-		x: (clientX - rect.left - this.camera.x) / this.camera.s,
-		y: (clientY - rect.top - this.camera.y) / this.camera.s
-	};
+	return Camera.toWorld(this.camera, clientX - rect.left, clientY - rect.top);
 };
 
 exports.toScreen = function(x, y) {
-	return {x: x * this.camera.s + this.camera.x, y: y * this.camera.s + this.camera.y};
+	return Camera.toScreen(this.camera, x, y);
 };
 
 /*** Rendering ***/
@@ -600,7 +600,8 @@ exports.renderNow = function() {
 /*** Pointer input ***/
 
 exports.handlePointerDown = function(event) {
-	if (this.modal) {
+	if (this.modal || this.presenting) {
+		// The presentation player handles its own input.
 		return;
 	}
 	this.pointers[event.pointerId] = {x: event.clientX, y: event.clientY};
@@ -638,11 +639,9 @@ exports.handlePointerDown = function(event) {
 	};
 	var gesture = null;
 	var interactive = Dom.closest(target, Dom.INTERACTIVE, this.viewport);
-	if (event.button === 1 || this.spaceDown || (this.presenting && !interactive)) {
+	if (event.button === 1 || this.spaceDown) {
 		gesture = this.startPan(start);
 	} else if (event.button !== 0) {
-		return;
-	} else if (this.presenting) {
 		return;
 	} else {
 		gesture = this.startToolGesture(start, target, interactive);
@@ -764,7 +763,7 @@ exports.handlePointerMove = function(event) {
 	var world = this.toWorld(event.clientX, event.clientY);
 	switch (g.kind) {
 	case "pan":
-		this.setCamera({x: g.camera.x + dx, y: g.camera.y + dy, s: g.camera.s});
+		this.setCamera({x: g.camera.x + dx, y: g.camera.y + dy, s: g.camera.s, r: g.camera.r});
 		break;
 	default:
 		g.onMove && g.onMove.call(this, g, world, event);
@@ -855,7 +854,7 @@ exports.rememberView = function() {
 };
 
 exports.handleWheel = function(event) {
-	if (this.modal || this.graph.zoom === false) {
+	if (this.modal || this.presenting || this.graph.zoom === false) {
 		return;
 	}
 	if (!event.ctrlKey && this.canScrollInside(event.target, event.deltaY)) {
@@ -865,7 +864,7 @@ exports.handleWheel = function(event) {
 	var rect = this.viewport.getBoundingClientRect();
 	var sx = event.clientX - rect.left, sy = event.clientY - rect.top;
 	if (event.shiftKey && !event.ctrlKey) {
-		this.setCamera({x: this.camera.x - event.deltaY, y: this.camera.y - event.deltaX, s: this.camera.s});
+		this.setCamera({x: this.camera.x - event.deltaY, y: this.camera.y - event.deltaX, s: this.camera.s, r: this.camera.r});
 	} else {
 		var delta = event.deltaY * (event.deltaMode === 1 ? 16 : 1);
 		var factor = Math.exp(-delta * (event.ctrlKey ? 0.01 : 0.0015));
@@ -1013,7 +1012,7 @@ exports.handleKeyDown = function(event) {
 		return;
 	}
 	if (this.presenting) {
-		this.handlePresentationKey(event);
+		// The presentation player listens on the same element.
 		return;
 	}
 	var key = event.key;
@@ -1135,9 +1134,10 @@ exports.handleMessage = function(message, params) {
 		var size = this.viewSize();
 		var scale = params.scale !== undefined ? params.scale :
 			(params.scaleBy !== undefined ? this.camera.s * params.scaleBy : this.camera.s);
-		var cx = params.x !== undefined ? params.x : (size.w / 2 - this.camera.x) / this.camera.s;
-		var cy = params.y !== undefined ? params.y : (size.h / 2 - this.camera.y) / this.camera.s;
-		this.animateCamera({s: scale, x: size.w / 2 - cx * scale, y: size.h / 2 - cy * scale});
+		var center = Camera.toWorld(this.camera, size.w / 2, size.h / 2);
+		var cx = params.x !== undefined ? params.x : center.x;
+		var cy = params.y !== undefined ? params.y : center.y;
+		this.animateCamera(Camera.cameraAt(cx, cy, scale, this.camera.r, size.w, size.h));
 		break;
 	case "graph-center-node":
 		var rect = this.cardRect(params.tiddler || message.param);

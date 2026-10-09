@@ -102,6 +102,8 @@ methods.syncCard = function(id) {
 	card.deleteBtn.style.display = this.can("nodes", id, "delete") ? "" : "none";
 	card.fieldsBtn.style.display = editable ? "" : "none";
 	card.stepBtn.style.display = editable ? "" : "none";
+	card.effectsBtn.style.display = editable ? "" : "none";
+	$tw.utils.toggleClass(card.effectsBtn, "pb-active", !!(stored.build || stored.exit));
 	card.resize.style.display = editable ? "" : "none";
 	card.connector.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
 	if (this.chooser && this.chooser.id === id) {
@@ -124,11 +126,15 @@ methods.createCard = function(id) {
 	card.stepBtn = Dom.button(doc, "target", "Add to presentation path", function() {
 		self.addStep({kind: "card", ref: id});
 	});
+	card.effectsBtn = Dom.button(doc, "eye", "Appear / disappear during the presentation", function() {
+		self.openEffects("c:" + id);
+	});
 	card.tools = Dom.el(doc, "div", {"class": "pb-card-tools pb-chrome"}, [
 		Dom.button(doc, "expand", "View tiddler", function() { self.openModal(id); }),
 		Dom.button(doc, "open", "Open in story river", function(e) { self.navigate(id, e); }),
 		card.fieldsBtn,
 		card.stepBtn,
+		card.effectsBtn,
 		card.deleteBtn
 	]);
 	card.resize = Dom.el(doc, "div", {"class": "pb-card-resize", "data-pb-card-part": "resize", title: "Resize"});
@@ -407,6 +413,7 @@ methods.startCardPartGesture = function(start, id, part) {
 
 methods.openChooser = function(id) {
 	this.closeChooser();
+	this.closeEffects && this.closeEffects();
 	this.chooser = {id: id, el: Dom.el(this.document, "div", {"class": "pb-popup pb-chooser pb-chrome"})};
 	this.root.appendChild(this.chooser.el);
 	this.renderChooser();
@@ -483,15 +490,26 @@ methods.positionPopups = function() {
 		var rect = this.cardRect(this.chooser.id);
 		if (!rect) {
 			this.closeChooser();
-			return;
+		} else {
+			this.placePopup(this.chooser.el, rect);
 		}
-		var p = this.toScreen(rect.x + rect.w, rect.y);
-		var size = this.viewSize();
-		var el = this.chooser.el;
-		var width = el.offsetWidth || 240;
-		var left = Math.min(Math.max(8, p.x + 8), size.w - width - 8);
-		var top = Math.min(Math.max(8, p.y), Math.max(8, size.h - (el.offsetHeight || 200) - 8));
-		el.style.left = left + "px";
-		el.style.top = top + "px";
 	}
+	if (this.effects) {
+		var key = this.effects.key;
+		var target = key.charAt(0) === "c" ? this.cardRect(key.substr(2)) :
+			(Model.findShape(this.data, key.substr(2)) && Model.shapeBounds(Model.findShape(this.data, key.substr(2))));
+		if (!target) {
+			this.closeEffects();
+		} else {
+			this.placePopup(this.effects.el, target);
+		}
+	}
+};
+
+methods.placePopup = function(el, rect) {
+	var p = this.toScreen(rect.x + rect.w, rect.y);
+	var size = this.viewSize();
+	var width = el.offsetWidth || 240;
+	el.style.left = Math.min(Math.max(8, p.x + 8), size.w - width - 8) + "px";
+	el.style.top = Math.min(Math.max(8, p.y), Math.max(8, size.h - (el.offsetHeight || 200) - 8)) + "px";
 };

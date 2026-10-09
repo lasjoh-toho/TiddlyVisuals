@@ -82,7 +82,6 @@ type: text/vnd.tiddlywiki
 	width: 0;
 	height: 0;
 	transform-origin: 0 0;
-	will-change: transform;
 }
 
 .pb-root svg.pb-svg {
@@ -327,6 +326,8 @@ type: text/vnd.tiddlywiki
 .pb-handle-nw, .pb-handle-se { cursor: nwse-resize; }
 .pb-handle-ne, .pb-handle-sw { cursor: nesw-resize; }
 .pb-handle-p0, .pb-handle-p1 { cursor: move; }
+.pb-handle-rot { cursor: grab; }
+.pb-rotate-stem { stroke: var(--pb-accent); }
 
 .pb-text-editor {
 	position: absolute;
@@ -568,6 +569,23 @@ type: text/vnd.tiddlywiki
 }
 .pb-textbtn:hover:not(:disabled) { border-color: var(--pb-accent); }
 .pb-textbtn:disabled { opacity: .55; cursor: default; }
+.pb-textbtn-primary { background: var(--pb-accent); border-color: var(--pb-accent); color: <<colour background>>; }
+
+.pb-field-row {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	margin: 4px 0 8px;
+	font-size: 13px;
+}
+.pb-select {
+	width: 100%;
+	padding: 4px;
+	border: 1px solid var(--pb-border);
+	border-radius: 6px;
+	background: var(--pb-panel);
+	color: var(--pb-fg);
+}
 
 .pb-steps {
 	top: 58px;
@@ -688,11 +706,18 @@ type: text/vnd.tiddlywiki
 .pb-zone-left { left: 0; cursor: w-resize; }
 .pb-zone-right { right: 0; cursor: e-resize; }
 
-.pb-present-bar {
+.pb-present-progress {
 	position: absolute;
 	left: 50%;
 	bottom: 16px;
 	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	pointer-events: auto;
+}
+
+.pb-present-bar {
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -706,7 +731,147 @@ type: text/vnd.tiddlywiki
 	opacity: .35;
 	transition: opacity .2s ease;
 }
-.pb-present-bar:hover { opacity: 1; }
+.pb-present-bar:hover,
+.pb-present-progress.pb-open .pb-present-bar { opacity: 1; }
+.pb-present-info { cursor: pointer; border-radius: 14px; padding: 2px 10px; }
+.pb-present-info:hover { background: rgba(255,255,255,.14); }
+
+/* Stack of all stops, last on top; opens from the counter. */
+.pb-present-stack {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+	max-height: 0;
+	overflow: hidden;
+	opacity: 0;
+	transition: opacity .15s ease;
+}
+.pb-present-progress.pb-open .pb-present-stack {
+	max-height: 55vh;
+	overflow-y: auto;
+	opacity: 1;
+	margin-bottom: 8px;
+	padding: 2px 6px;
+	scrollbar-width: none;
+}
+.pb-seg {
+	flex: none;
+	width: 140px;
+	height: 7px;
+	border-radius: 3px;
+	background: rgba(255,255,255,.45);
+	box-shadow: 0 1px 3px rgba(0,0,0,.35);
+	cursor: pointer;
+	transition: background .12s ease, transform .1s ease;
+}
+.pb-seg:hover { background: rgba(255,255,255,.95); transform: scaleX(1.06); }
+.pb-seg.pb-seg-played { background: rgba(255,255,255,.2); }
+.pb-seg.pb-seg-played:hover { background: rgba(255,255,255,.6); }
+.pb-seg.pb-seg-current { background: var(--pb-accent); }
+
+.pb-present-preview {
+	position: absolute;
+	left: 50%;
+	bottom: 120px;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	border-radius: 10px;
+	overflow: hidden;
+	background: var(--pb-bg);
+	box-shadow: 0 10px 34px rgba(0,0,0,.45);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity .1s ease;
+}
+.pb-present-preview.pb-visible { opacity: 1; }
+.pb-preview-frame {
+	position: relative;
+	width: 240px;
+	height: 150px;
+	overflow: hidden;
+	background: var(--pb-bg);
+}
+.pb-preview-clone, .pb-preview-clone * { transition: none !important; }
+.pb-preview-clone .pb-shape-frame { display: none; }
+.pb-present-preview-title {
+	padding: 5px 10px;
+	font-size: 12px;
+	color: #fff;
+	background: rgba(20,20,24,.85);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 220px;
+}
+
+/* Presentation pen (temporary notes) */
+.pb-present-pen {
+	position: absolute;
+	left: 14px;
+	bottom: 14px;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	pointer-events: auto;
+}
+.pb-pen-toggle {
+	color: #fff;
+	border-radius: 50%;
+	background: rgba(20,20,24,.35);
+	opacity: .4;
+	transition: opacity .15s ease, background .15s ease;
+}
+.pb-pen-toggle:hover, .pb-pen-toggle.pb-active { opacity: 1; background: rgba(20,20,24,.6); }
+.pb-present-pen .pb-btn.pb-pen-toggle.pb-active { background: var(--pb-accent); }
+.pb-pen-panel {
+	display: none;
+	flex-direction: column;
+	gap: 6px;
+	padding: 6px;
+	border-radius: 12px;
+	color: #fff;
+	background: rgba(20,20,24,.7);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+.pb-present-pen.pb-open .pb-pen-panel { display: flex; }
+.pb-pen-panel .pb-btn { color: #fff; }
+.pb-pen-panel .pb-btn:hover { background: rgba(255,255,255,.18); }
+.pb-pen-tools, .pb-pen-colors, .pb-pen-row { display: flex; gap: 4px; align-items: center; }
+.pb-pen-colors { padding: 0 4px; gap: 7px; }
+.pb-pen-size { width: 110px; }
+.pb-root.pb-pen-on .pb-zone { pointer-events: none; }
+.pb-root.pb-pen-on .pb-viewport { cursor: crosshair; }
+.pb-root.pb-pen-on[data-pb-pen="eraser"] .pb-viewport { cursor: cell; }
+.pb-root.pb-pen-on[data-pb-pen="text"] .pb-viewport { cursor: text; }
+.pb-root.pb-pen-on .pb-card * { pointer-events: none; }
+.pb-root svg.pb-layer-ink path,
+.pb-root svg.pb-layer-ink text { pointer-events: visiblePainted; }
+.pb-ink-text { font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive, sans-serif; font-weight: 600; }
+.pb-present-text {
+	position: absolute;
+	z-index: 30;
+	min-width: 160px;
+	padding: 2px 6px;
+	border: 2px dashed currentColor;
+	border-radius: 6px;
+	background: rgba(255,255,255,.85);
+	font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive, sans-serif;
+	font-weight: 600;
+	line-height: 1.2;
+	resize: none;
+	outline: none;
+	pointer-events: auto;
+}
+
+/* Builds, exits and covers */
+.pb-card, .pb-shape { transition: opacity .45s ease, box-shadow .15s ease; }
+.pb-root:not(.pb-presenting) .pb-shape { transition: none; }
+.pb-build-hidden, .pb-exit-hidden, .pb-occluded { opacity: 0 !important; pointer-events: none !important; }
+.pb-root.pb-export { position: fixed; inset: 0; }
 .pb-present-bar .pb-btn { color: #fff; border-radius: 50%; }
 .pb-present-bar .pb-btn:hover { background: rgba(255,255,255,.18); }
 

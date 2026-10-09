@@ -3,104 +3,81 @@ title: $:/plugins/lasjoh-toho/pinboard/lib/presenter.js
 type: application/javascript
 module-type: library
 
-Presentation mode: the board goes fullscreen and the camera flies along
-the presentation path (frames, cards, shapes, saved views), zooming out
-while travelling and back in on arrival. Viewers can still pan and zoom
-freely; "next" always returns to the path.
+Presentation mode and export. Both hand the board to the same player
+(player.js): inside the wiki it drives the live board, and exported HTML
+files embed the player and camera modules verbatim.
 
 \*/
 
 "use strict";
 
-var Dom = require("./dom.js");
+var Model = require("./model.js");
+var Camera = require("./camera.js");
+var Player = require("./player.js");
+
+var CAMERA_SOURCE = "$:/plugins/lasjoh-toho/pinboard/lib/camera.js";
+var PLAYER_SOURCE = "$:/plugins/lasjoh-toho/pinboard/lib/player.js";
 
 var methods = exports.methods = {};
 
 methods.startPresentation = function(index) {
-	var self = this, doc = this.document;
-	var steps = this.playableSteps();
+	var self = this;
+	var steps = this.playerSteps();
 	if (steps.length === 0) {
 		this.toggleSteps(true);
 		return;
 	}
 	if (this.presenting) {
-		this.goToStep(index || 0);
+		this.player.goTo(index || 0);
 		return;
 	}
 	this.closeModal();
 	this.closeChooser();
+	this.closeEffects && this.closeEffects();
 	this.textEditor && this.finishTextEdit();
 	this.cancelGesture();
 	this.presenting = true;
 	this.savedCamera = this.camera;
-	this.presentIndex = -1;
-	this.root.classList.add("pb-presenting");
 	this.renderSelection();
 	this.renderContextBar();
-	// Overlay: click zones and a small control bar.
-	this.counter = Dom.el(doc, "span", {"class": "pb-present-counter"});
-	this.presentTitle = Dom.el(doc, "span", {"class": "pb-present-title"});
-	this.presentUi = Dom.el(doc, "div", {"class": "pb-present-ui pb-chrome"}, [
-		Dom.el(doc, "div", {"class": "pb-zone pb-zone-left", title: "Previous", onclick: function() { self.prevStep(); }}),
-		Dom.el(doc, "div", {"class": "pb-zone pb-zone-right", title: "Next", onclick: function() { self.nextStep(); }}),
-		Dom.el(doc, "div", {"class": "pb-present-bar"}, [
-			Dom.button(doc, "left", "Previous (←)", function() { self.prevStep(); }),
-			Dom.el(doc, "div", {"class": "pb-present-info"}, [this.counter, this.presentTitle]),
-			Dom.button(doc, "right", "Next (→, Space)", function() { self.nextStep(); }),
-			Dom.button(doc, "fit", "Overview (O)", function() { self.fitAll(true); }),
-			Dom.button(doc, "close", "End presentation (Esc)", function() { self.stopPresentation(); })
-		])
-	]);
-	this.root.appendChild(this.presentUi);
-	this.onFullscreenChange = function() {
-		if (doc.fullscreenElement === self.root) {
-			self.wentFullscreen = true;
-		} else if (self.wentFullscreen && self.presenting) {
-			self.stopPresentation();
-		}
-		// The viewport changed size: re-aim at the current step.
-		setTimeout(function() {
-			if (self.presenting && self.presentIndex >= 0) {
-				self.goToStep(self.presentIndex, true);
-			}
-		}, 60);
-	};
-	doc.addEventListener("fullscreenchange", this.onFullscreenChange);
-	this.wentFullscreen = false;
-	if (this.root.requestFullscreen && !doc.fullscreenElement) {
-		try {
-			var promise = this.root.requestFullscreen();
-			promise && promise.catch && promise.catch(function() {});
-		} catch (e) {}
-	}
-	this.root.focus({preventScroll: true});
-	this.goToStep(Math.max(0, Math.min(steps.length - 1, index || 0)));
+	this.player = Player.create(Camera, {
+		document: this.document,
+		window: this.window,
+		root: this.root,
+		viewport: this.viewport,
+		world: this.world,
+		steps: steps,
+		objects: this.playerObjects(),
+		overview: this.contentBounds(),
+		fullscreen: true,
+		getCamera: function() { return self.camera; },
+		setCamera: function(camera) { self.setCamera(camera); },
+		onStep: function(i) {
+			self.presentIndex = i;
+			self.stepsOpen && self.renderSteps();
+		},
+		onStop: function() { self.afterPresentation(); }
+	});
+	this.player.start(index || 0);
 };
 
 methods.stopPresentation = function() {
-	if (!this.presenting) {
-		return;
+	if (this.player) {
+		this.player.stop();
 	}
-	var doc = this.document;
+};
+
+methods.afterPresentation = function() {
+	this.player = null;
 	this.presenting = false;
-	doc.removeEventListener("fullscreenchange", this.onFullscreenChange);
-	if (doc.fullscreenElement === this.root && doc.exitFullscreen) {
-		try {
-			var promise = doc.exitFullscreen();
-			promise && promise.catch && promise.catch(function() {});
-		} catch (e) {}
-	}
-	Dom.remove(this.presentUi);
-	this.presentUi = null;
-	this.root.classList.remove("pb-presenting");
-	for (var id in this.cards) {
-		this.cards[id].el.classList.remove("pb-spotlight");
-	}
+	this.presentIndex = -1;
 	if (this.savedCamera && !this.destroyed) {
 		this.animateCamera(this.savedCamera, 600);
 	}
-	this.updateUi();
-	this.renderSelection();
+	if (!this.destroyed) {
+		this.updateUi();
+		this.renderSelection();
+	}
 };
 
 /*
@@ -109,85 +86,203 @@ Steps whose target still exists, in order.
 methods.playableSteps = function() {
 	var self = this;
 	return this.data.steps.filter(function(step) {
-		return !!self.stepRect(step);
+		return !!self.stepTarget(step);
 	});
 };
 
-methods.goToStep = function(index, instant) {
-	var steps = this.playableSteps();
-	if (steps.length === 0) {
-		return;
+/*
+What the camera aims at for a step: an upright rectangle plus the angle
+it is turned by.
+*/
+methods.stepTarget = function(step) {
+	switch (step.kind) {
+	case "frame":
+	case "shape":
+		var shape = Model.findShape(this.data, step.ref);
+		if (!shape) {
+			return null;
+		}
+		if (Model.isBoxType(shape.type)) {
+			return {rect: {x: shape.x, y: shape.y, w: shape.w, h: shape.h}, rot: shape.rot || 0};
+		}
+		return {rect: Model.shapeBounds(shape), rot: 0};
+	case "card":
+		var rect = this.cardRect(step.ref);
+		return rect ? {rect: rect, rot: 0} : null;
+	case "view":
+		return {rect: {x: step.x, y: step.y, w: step.w, h: step.h}, rot: 0};
 	}
-	index = Math.max(0, Math.min(steps.length - 1, index));
-	this.presentIndex = index;
-	var step = steps[index];
-	var rect = this.stepRect(step);
-	for (var id in this.cards) {
-		$tw.utils.toggleClass(this.cards[id].el, "pb-spotlight", step.kind === "card" && step.ref === id);
-	}
-	this.flyTo(rect, this.stepPadding(step), instant ? false : undefined);
-	if (this.counter) {
-		this.counter.textContent = (index + 1) + " / " + steps.length;
-		this.presentTitle.textContent = this.stepTitle(step);
-	}
-	if (this.stepsOpen) {
-		this.renderSteps();
-	}
+	return null;
 };
 
-methods.nextStep = function() {
-	var steps = this.playableSteps();
-	if (this.presentIndex < steps.length - 1) {
-		this.goToStep(this.presentIndex + 1);
+methods.playerSteps = function() {
+	var self = this;
+	return this.playableSteps().map(function(step) {
+		var target = self.stepTarget(step);
+		var key = step.kind === "card" ? "c:" + step.ref : (step.kind === "view" ? null : "s:" + step.ref);
+		return {
+			id: step.id,
+			rect: target.rect,
+			rot: target.rot,
+			padding: self.stepPadding(step),
+			title: self.stepTitle(step),
+			focus: key,
+			occlude: (step.kind === "card" || step.kind === "shape") ? self.coveringShapes(step) : []
+		};
+	});
+};
+
+/*
+Shapes lying on top of a step's card or shape. They are hidden while that
+step is shown, so a sticky note can cover something until the
+presentation arrives there.
+*/
+methods.coveringShapes = function(step) {
+	var shapes = this.data.shapes;
+	var order = function(shape) {
+		return (shape.layer === "back" ? 0 : 20000) + shapes.indexOf(shape);
+	};
+	var targetZ, targetRect;
+	if (step.kind === "card") {
+		targetZ = 10000;
+		targetRect = this.cardRect(step.ref);
 	} else {
-		// Past the end: show the whole board once more.
-		this.fitAll(true);
-		this.presentIndex = steps.length;
-		if (this.counter) {
-			this.counter.textContent = "End";
-			this.presentTitle.textContent = "Esc to leave";
+		var target = Model.findShape(this.data, step.ref);
+		targetZ = target ? order(target) : Infinity;
+		targetRect = target && Model.shapeBounds(target);
+	}
+	if (!targetRect) {
+		return [];
+	}
+	var area = Math.max(1, targetRect.w * targetRect.h);
+	var out = [];
+	shapes.forEach(function(shape) {
+		if (shape.type === "frame" || shape.id === step.ref || order(shape) <= targetZ) {
+			return;
+		}
+		var b = Model.shapeBounds(shape);
+		var ix = Math.min(b.x + b.w, targetRect.x + targetRect.w) - Math.max(b.x, targetRect.x);
+		var iy = Math.min(b.y + b.h, targetRect.y + targetRect.h) - Math.max(b.y, targetRect.y);
+		if (ix > 0 && iy > 0 && ix * iy >= area * 0.25) {
+			out.push("s:" + shape.id);
+		}
+	});
+	return out;
+};
+
+/*
+Objects with build or exit effects, with their step ids turned into
+positions in the playable path.
+*/
+methods.playerObjects = function() {
+	var ids = this.playableSteps().map(function(step) { return step.id; });
+	var out = [];
+	var add = function(key, entry) {
+		if (entry && (entry.build || entry.exit)) {
+			out.push({
+				key: key,
+				build: entry.build ? ids.indexOf(entry.build) : -1,
+				exit: entry.exit ? ids.indexOf(entry.exit) : -1
+			});
+		}
+	};
+	this.data.shapes.forEach(function(shape) { add("s:" + shape.id, shape); });
+	for (var id in this.data.cards) {
+		if (this.cards[id]) {
+			add("c:" + id, this.data.cards[id]);
 		}
 	}
+	return out;
 };
 
-methods.prevStep = function() {
-	this.goToStep(Math.min(this.presentIndex, this.playableSteps().length) - 1);
+/*** Export ***/
+
+/*
+Builds a single, self-contained HTML file that plays the presentation
+without TiddlyWiki: the rendered board, the page's styles, and the same
+player and camera code used here.
+*/
+methods.exportPresentationHtml = function() {
+	var doc = this.document;
+	var steps = this.playerSteps();
+	this.renderNow();
+	var world = this.world.cloneNode(true);
+	var strip = world.querySelectorAll(".pb-layer-ui, .pb-layer-ink, .pb-card-tools, .pb-card-resize, .pb-card-connector");
+	for (var i = 0; i < strip.length; i++) {
+		strip[i].parentNode.removeChild(strip[i]);
+	}
+	var marked = world.querySelectorAll(".pb-selected, .pb-dragging, .pb-occluded, .pb-spotlight, .pb-build-hidden, .pb-exit-hidden");
+	for (i = 0; i < marked.length; i++) {
+		["pb-selected", "pb-dragging", "pb-occluded", "pb-spotlight", "pb-build-hidden", "pb-exit-hidden"].forEach(function(c) {
+			marked[i].classList.remove(c);
+		});
+	}
+	// Links lead nowhere outside the wiki.
+	var links = world.querySelectorAll("a[href^='#']");
+	for (i = 0; i < links.length; i++) {
+		links[i].removeAttribute("href");
+	}
+	var styles = Array.prototype.map.call(doc.querySelectorAll("style"), function(style) {
+		return style.textContent;
+	}).join("\n");
+	var title = this.exportTitle();
+	var data = {
+		title: title,
+		steps: steps,
+		objects: this.playerObjects(),
+		overview: this.contentBounds()
+	};
+	var rootClass = this.root.className.replace(/\bpb-(presenting|panning|space|pen-on)\b/g, "").trim();
+	var rootStyle = this.root.getAttribute("style") || "";
+	var script = function(text) {
+		return text.replace(/<\/(script)/gi, "<\\/$1");
+	};
+	var module = function(name, title) {
+		return "var " + name + " = {};\n(function(exports) {\n" + script(this.wiki.getTiddlerText(title) || "") + "\n})(" + name + ");\n";
+	}.bind(this);
+	return "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n" +
+		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" +
+		"<title>" + escapeHtml(title) + "</title>\n" +
+		"<style>\n" + styles.replace(/<\/(style)/gi, "<\\/$1") + "\n" +
+		"html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }\n</style>\n</head>\n" +
+		"<body class=\"" + escapeHtml(doc.body.className) + "\">\n" +
+		"<div class=\"" + escapeHtml(rootClass) + " pb-export\" tabindex=\"0\" style=\"" + escapeHtml(rootStyle) + "\">" +
+		"<div class=\"pb-viewport\">" + world.outerHTML + "</div></div>\n" +
+		"<script>\n" + module("PinboardCamera", CAMERA_SOURCE) + module("PinboardPlayer", PLAYER_SOURCE) +
+		"var data = " + script(JSON.stringify(data)) + ";\n" +
+		"var root = document.querySelector('.pb-root');\n" +
+		"var player = PinboardPlayer.create(PinboardCamera, {document: document, window: window, root: root, " +
+		"viewport: root.querySelector('.pb-viewport'), world: root.querySelector('.pb-world'), " +
+		"steps: data.steps, objects: data.objects, overview: data.overview, standalone: true, keyTarget: document});\n" +
+		"player.start(0);\n</script>\n</body>\n</html>\n";
 };
 
-methods.handlePresentationKey = function(event) {
-	var handled = true;
-	switch (event.key) {
-	case "ArrowRight":
-	case "ArrowDown":
-	case "PageDown":
-	case " ":
-	case "Enter":
-		this.nextStep();
-		break;
-	case "ArrowLeft":
-	case "ArrowUp":
-	case "PageUp":
-	case "Backspace":
-		this.prevStep();
-		break;
-	case "Home":
-		this.goToStep(0);
-		break;
-	case "End":
-		this.goToStep(this.playableSteps().length - 1);
-		break;
-	case "o":
-	case "O":
-		this.fitAll(true);
-		break;
-	case "Escape":
-		this.stopPresentation();
-		break;
-	default:
-		handled = false;
-	}
-	if (handled) {
-		event.preventDefault();
-		event.stopPropagation();
-	}
+methods.exportTitle = function() {
+	var store = this.graph.store || "";
+	var title = store.replace(/^\$:\/graph\//, "");
+	return title || "Pinboard presentation";
 };
+
+methods.downloadPresentation = function() {
+	if (this.playableSteps().length === 0) {
+		this.toggleSteps(true);
+		return;
+	}
+	var html = this.exportPresentationHtml();
+	var doc = this.document, win = this.window;
+	var blob = new win.Blob([html], {type: "text/html"});
+	var url = win.URL.createObjectURL(blob);
+	var link = doc.createElement("a");
+	link.href = url;
+	link.download = this.exportTitle().replace(/[\\\/:*?"<>|]+/g, "_") + ".html";
+	doc.body.appendChild(link);
+	link.click();
+	doc.body.removeChild(link);
+	setTimeout(function() { win.URL.revokeObjectURL(url); }, 5000);
+};
+
+function escapeHtml(text) {
+	return String(text).replace(/[&<>"]/g, function(c) {
+		return {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"}[c];
+	});
+}

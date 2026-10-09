@@ -83,7 +83,7 @@ it("clips edges to card borders", function() {
 
 it("fits rectangles into the view and zooms around a point", function() {
 	var cam = Model.fitRect({x: 0, y: 0, w: 200, h: 100}, 400, 400, 0);
-	expect(cam).toEqual({s: 2, x: 0, y: 100});
+	expect(cam).toEqual({s: 2, r: 0, x: 0, y: 100});
 	var zoomed = Model.zoomAt({x: 0, y: 0, s: 1}, 2, 100, 100);
 	// The point under the cursor stays put.
 	expect((100 - zoomed.x) / zoomed.s).toBeCloseTo(100);
@@ -92,7 +92,7 @@ it("fits rectangles into the view and zooms around a point", function() {
 });
 
 it("interpolates cameras smoothly between both ends", function() {
-	var from = {x: 0, y: 0, s: 1}, to = {x: -900, y: -300, s: 3};
+	var from = {x: 0, y: 0, s: 1, r: 0}, to = {x: -900, y: -300, s: 3, r: 0};
 	var path = Model.interpolateCamera(from, to, 800, 600);
 	var start = path(0), end = path(1);
 	expect(start.s).toBeCloseTo(1);
@@ -106,6 +106,39 @@ it("interpolates cameras smoothly between both ends", function() {
 	var zoom = Model.interpolateCamera({x: 400, y: 300, s: 1}, {x: 400 - 400, y: 300 - 300, s: 2}, 800, 600);
 	expect(zoom(1).s).toBe(2);
 	expect(zoom(0.5).s).toBeGreaterThan(1);
+});
+
+it("handles rotated cameras", function() {
+	var Camera = require("$:/plugins/lasjoh-toho/pinboard/lib/camera.js");
+	// A frame turned by 90 degrees fills the view upright.
+	var cam = Camera.fitRect({x: 0, y: 0, w: 200, h: 100}, 400, 200, 0, 8, 90);
+	expect(cam.r).toBe(-90);
+	expect(cam.s).toBe(2);
+	var center = Camera.toWorld(cam, 200, 100);
+	expect(center.x).toBeCloseTo(100);
+	expect(center.y).toBeCloseTo(50);
+	// toScreen and toWorld are inverses.
+	var p = Camera.toScreen(cam, 13, -7), back = Camera.toWorld(cam, p.x, p.y);
+	expect(back.x).toBeCloseTo(13);
+	expect(back.y).toBeCloseTo(-7);
+	// Rotation turns the short way round.
+	var path = Camera.interpolate({x: 0, y: 0, s: 1, r: 170}, {x: 0, y: 0, s: 1, r: -170}, 400, 200);
+	expect(path(0.5).r).toBeCloseTo(180);
+	expect(path(1).r).toBe(-170);
+});
+
+it("bounds rotated shapes and keeps effects", function() {
+	var doc = Model.parseDoc(JSON.stringify({shapes: [
+		{id: "f", type: "frame", x: 0, y: 0, w: 100, h: 50, rot: 450, build: "t1", exit: ""}]}));
+	var shape = doc.shapes[0];
+	expect(shape.rot).toBe(90);
+	expect(shape.build).toBe("t1");
+	expect(shape.exit).toBeUndefined();
+	var b = Model.shapeBounds(shape);
+	expect(b.w).toBeCloseTo(50);
+	expect(b.h).toBeCloseTo(100);
+	expect(b.x).toBeCloseTo(25);
+	expect(Model.parseDoc(JSON.stringify({cards: {A: {exit: "t2"}}})).cards.A).toEqual({exit: "t2"});
 });
 
 it("smooths and simplifies strokes", function() {
