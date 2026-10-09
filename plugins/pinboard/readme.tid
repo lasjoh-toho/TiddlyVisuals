@@ -1,0 +1,49 @@
+title: $:/plugins/lasjoh-toho/pinboard/readme
+
+The ''Pinboard'' engine turns a [[TW5-Graph|$:/plugins/flibbles/graph]] graph into an infinite canvas: nodes become cards that show the fields you choose, you can draw and add shapes around them, and a path through the board plays back as a zooming, fullscreen presentation.
+
+!! Getting started
+
+Pick the template ''Pinboard (infinite canvas & presentation)'' in a graph's settings, or write the graph yourself:
+
+```
+<$graph $engine="Pinboard" store="My Board">
+  <$list filter="[tag[Idea]]">
+    <$node.default />
+  </$list>
+</$graph>
+```
+
+The `store` property names the tiddler that keeps the board's drawings, card sizes, chosen fields and presentation path (in its `pinboard` field). Without it, drawings only last until the board is re-rendered.
+
+!! Cards
+
+* Drag a card to move it. Drag the corner to resize it.
+* Hover a card for its tools: ''view'' (full-height reader with Edit/Close buttons that appear on hover), ''open'' in the story river, ''fields'' and ''remove''.
+* ''Fields'' chooses which fields this card shows and in which order. `title` toggles the card's heading; `text` renders the tiddler's body (images included); `tags`, `created`/`modified`, `icon` get special treatment; any other field is shown as name and rendered value.
+* Defaults: the per-card choice, else the node's `fields` property, else the graph's `fields` property (`title text`).
+* Double-click a card to view it (unless the graph gives nodes their own `actions`).
+* Drag the dot on a card's right edge to another card to connect them (when the graph allows adding edges).
+
+!! Drawing
+
+|Key |Tool |
+|V |Select and move |
+|H / Space |Pan |
+|P |Pen |
+|M |Highlighter |
+|E |Eraser |
+|R / O |Rectangle / ellipse (Shift: square / circle) |
+|L / A |Line / arrow (Shift: 45° steps) |
+|T |Text |
+|N |Sticky note |
+|F |Presentation frame |
+|C |Add a tiddler card |
+
+Selected shapes can be recolored, re-sized, duplicated (Ctrl+D), moved with the arrow keys, sent behind or above the cards and deleted. Double-click a shape to edit its text. Ctrl+Z / Ctrl+Shift+Z undo and redo. Mouse wheel or pinch zooms, `0` fits everything.
+
+!! Presenting
+
+Frames join the presentation path automatically. Cards, shapes and the current view can be added from the selection bar or the path panel (list icon, top right), where stops are reordered. ▶ starts the presentation: fullscreen, camera flights between stops, arrows/Space/clicks at the screen edges to move, `O` for an overview, Esc to leave.
+
+Messages for buttons inside the graph: `graph-pinboard-present` (optional `step`), `graph-pinboard-fit`, `graph-pinboard-open` (`tiddler`), `graph-center-node` (`tiddler`), `graph-move-view` (`x`, `y`, `scale`, `scaleBy`).

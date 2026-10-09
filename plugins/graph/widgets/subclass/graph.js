@@ -61,7 +61,7 @@ GraphWidget.render = function(parent, nextSibling) {
 		var objects = this.computeGraphObjects() || {};
 		objects.graph = this.calculatePropertyValues(getCatalog(this.graphEngine, "graph"));
 		try {
-			this.graphEngine.init(this.graphElement, objects, {wiki: this.wiki});
+			this.graphEngine.init(this.graphElement, objects, {wiki: this.wiki, widget: this});
 		} catch(e) {
 			// Technically, we should drop this engine without destroying it.
 			// It didn't successfully init, so it's not initialized.
