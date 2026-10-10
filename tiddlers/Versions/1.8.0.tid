@@ -1,0 +1,6 @@
+created: 20261010120000000
+
+This release adds [[Pinboard]], a second engine shipped alongside <<.graph>> (`$:/plugins/lasjoh-toho/pinboard`): an infinite canvas where nodes become cards showing the fields you choose per tiddler, with a vector drawing layer (pen, highlighter, shapes, text, sticky notes, frames) and immersive presentations (camera flights, tilted frames, appear/disappear effects, reveals, a progress stack with previews, a presentation pen and export to a standalone HTML file).
+
+* The graph widget now passes itself to engines (`options.widget`), so engines can render interactive wiki content.
+* Releases attach `pinboard.json` next to `graph.json`.
