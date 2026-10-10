@@ -20,6 +20,11 @@
 				"$:/plugins/flibbles/graph",
 				"graph.json",
 				"text/plain",
+				"$:/core/templates/html-json-tiddler",
+			"--render",
+				"$:/plugins/lasjoh-toho/pinboard",
+				"pinboard.json",
+				"text/plain",
 				"$:/core/templates/html-json-tiddler"
 		],
 		"index": [

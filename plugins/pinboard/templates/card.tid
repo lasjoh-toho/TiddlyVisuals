@@ -1,0 +1,28 @@
+title: $:/plugins/lasjoh-toho/pinboard/templates/card
+
+\whitespace trim
+\procedure pinboard-field-body()
+<%if [<pinboard-field>match[text]then<pinboard-recursive>match[yes]] %>
+	<div class="pb-field-recursive">This board</div>
+<%elseif [<pinboard-field>match[text]] %>
+	<$transclude $tiddler=<<currentTiddler>> $mode=block />
+<%elseif [<pinboard-field>match[tags]] %>
+	<div class="pb-field-tags">
+		<$list filter="[<currentTiddler>tags[]]" template="$:/core/ui/TagTemplate" storyview="pop" />
+	</div>
+<%elseif [<pinboard-field>match[modified]] [<pinboard-field>match[created]] +[limit[1]] %>
+	<span class="pb-field-name"><$text text=<<pinboard-field>> /></span>
+	<span class="pb-field-value"><$view field=<<pinboard-field>> format="date" template="DDth MMM YYYY" /></span>
+<%elseif [<pinboard-field>match[icon]] [<pinboard-field>match[image]] [<pinboard-field>match[_canonical_uri]] +[limit[1]] %>
+	<$image source={{{ [<currentTiddler>get<pinboard-field>] }}} />
+<%else%>
+	<span class="pb-field-name"><$text text=<<pinboard-field>> /></span>
+	<span class="pb-field-value"><$transclude $tiddler=<<currentTiddler>> $field=<<pinboard-field>> $mode=inline /></span>
+<%endif%>
+\end pinboard-field-body
+
+<$list filter="[enlist<pinboard-fields>] :filter[<..currentTiddler>has<currentTiddler>]" variable="pinboard-field">
+<div class={{{ [[pb-field pb-field-]addsuffix<pinboard-field>] }}}>
+	<<pinboard-field-body>>
+</div>
+</$list>

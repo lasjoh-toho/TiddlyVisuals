@@ -1,0 +1,39 @@
+title: Pinboard
+tags: Plugins Engines
+icon: $:/core/images/layout-button
+builds-upon: Graph
+
+Pinboard is an engine for <<.graph>> that turns a graph into an ''infinite canvas'' for thinking and presenting. Nodes become cards showing the fields you choose, you can draw, write and place shapes around them, and a path of frames, cards and views plays back as a fullscreen presentation where the camera flies across the board.
+
+<$boundingbox width=100% height=560px>
+
+<$graph.view $tiddler="$:/graph/Pinboard Demo" />
+
+</$boundingbox>
+
+Try it: drag cards, hover a card for its tools (view, open, fields, add to path), double-click a card to read it in the full-height viewer, pick a pen or shape from the dock, then press ▶ (top right).
+
+! Pros
+
+* Cards render real tiddler content: wikitext, links, transclusions, images and tags, at any zoom level.
+* Per-card choice of shown fields and their order, stored with the board.
+* Vector drawing layer: pen, highlighter, rectangles, ellipses, lines, arrows, text, sticky notes, frames. Undo/redo.
+* Presentation mode with smooth zoom-and-pan flights between stops.
+* No third-party library; small and fast for boards of a few hundred cards.
+
+! Cons
+
+* No physics or automatic layout. Unpositioned cards are laid out on a grid.
+* Experimental.
+
+! Installation
+
+Drag this pill onto your wiki along with <<.graph>>:
+
+@@text-align:center;
+<$link to="$:/plugins/lasjoh-toho/pinboard" class="graph-dragger graph-dragger-engine">{{$:/core/images/layout-button}}<br>Pinboard</$link>
+@@
+
+Then pick the template ''Pinboard (infinite canvas & presentation)'' in a graph's settings.
+
+{{$:/plugins/lasjoh-toho/pinboard/readme}}

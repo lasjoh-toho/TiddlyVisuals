@@ -6,8 +6,9 @@ Drag the following pill onto your wiki project to import it.
 <$link to="$:/plugins/flibbles/graph" class="graph-dragger graph-dragger-plugin">{{$:/plugins/flibbles/graph/icon|4em}}<br><<.graph>></$link>
 @@
 
-Now drag over a graphing engine for <<.graph>> to use. (There's only one for now.)
+Now drag over at least one graphing engine for <<.graph>> to use.
 
 @@text-align:center;
 <$link to="$:/plugins/flibbles/vis-network" class="graph-dragger graph-dragger-engine">{{$:/plugins/flibbles/vis-network/icon}}<br>Vis-Network</$link>
+<$link to="$:/plugins/lasjoh-toho/pinboard" class="graph-dragger graph-dragger-engine">{{$:/core/images/layout-button}}<br>Pinboard</$link>
 @@

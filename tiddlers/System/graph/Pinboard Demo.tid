@@ -1,0 +1,14 @@
+title: $:/graph/Pinboard Demo
+filter: Zeus Athena Ares Aphrodite Poseidon Hades
+template: $:/plugins/lasjoh-toho/pinboard/templates/pinboard
+type: application/json
+pinboard: {"version":1,"cards":{},"shapes":[{"id":"demo-title","type":"text","x":-330,"y":-400,"w":700,"h":70,"stroke":"#1f2937","fill":"none","width":3,"layer":"front","text":"The Olympian family","fontSize":48},{"id":"demo-underline","type":"pen","points":[[-320,-322],[-200,-330],[-60,-318],[80,-328],[220,-320],[330,-326]],"stroke":"#f59e0b","fill":"none","width":15,"layer":"back"},{"id":"demo-frame-1","type":"frame","x":-620,"y":-250,"w":1240,"h":400,"stroke":"#6366f1","fill":"none","width":2,"layer":"back","text":"The three brothers"},{"id":"demo-zeus-ring","type":"ellipse","x":-170,"y":-130,"w":340,"h":260,"stroke":"#ef4444","fill":"none","width":4,"layer":"back","build":"demo-step-2"},{"id":"demo-frame-2","type":"frame","x":-560,"y":170,"w":1120,"h":330,"stroke":"#6366f1","fill":"none","width":2,"layer":"back","text":"Some of Zeus' children","rot":-4},{"id":"demo-sticky","type":"sticky","x":600,"y":160,"w":190,"h":170,"stroke":"#1f2937","fill":"#fde68a","width":3,"layer":"front","text":"Who is missing?\nDouble-click the board to add a tiddler.","fontSize":17},{"id":"demo-arrow","type":"arrow","points":[[600,250],[520,262]],"stroke":"#1f2937","fill":"none","width":3,"layer":"front"},{"id":"demo-cover","type":"sticky","x":300,"y":-120,"w":240,"h":120,"stroke":"#1f2937","fill":"#a7f3d0","width":3,"layer":"front","text":"Who rules the underworld?","fontSize":20}],"steps":[{"id":"demo-step-0","kind":"shape","ref":"demo-title"},{"id":"demo-step-1","kind":"frame","ref":"demo-frame-1"},{"id":"demo-step-2","kind":"card","ref":"Zeus"},{"id":"demo-step-3","kind":"frame","ref":"demo-frame-2"},{"id":"demo-step-4","kind":"card","ref":"Athena"},{"id":"demo-step-hades","kind":"card","ref":"Hades"},{"id":"demo-step-5","kind":"shape","ref":"demo-sticky"}]}
+
+{
+    "Zeus": "0,0",
+    "Athena": "-340,260",
+    "Ares": "0,300",
+    "Aphrodite": "340,260",
+    "Poseidon": "-420,-60",
+    "Hades": "420,-60"
+}

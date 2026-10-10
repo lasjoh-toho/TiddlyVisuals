@@ -17,6 +17,8 @@ TW5-Graph requires you to install it **and** at least one other plugin wrapping 
 
 [Vis-network](https://github.com/flibbles/tw5-vis-network)
 
+This fork also ships **Pinboard** (`plugins/pinboard`), an infinite-canvas engine: nodes become cards that show the fields you choose per tiddler, a vector drawing layer (pen, highlighter, shapes, text, sticky notes) sits on the same canvas, and frames/cards/views form a path that plays back as a zooming fullscreen presentation. Pick the "Pinboard" template in a graph's settings, or use `<$graph $engine="Pinboard" store="My Board">`.
+
 If you're using a single-file tiddlywiki, all you have to do is visit the [demo site](https://flibbles.github.io/tw5-graph/), where both TW5-Graph and all its supported engines are available for a quick drag-and-drop install.
 
 ### For Node.js
