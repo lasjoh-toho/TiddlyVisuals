@@ -61,7 +61,13 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref_name }}
       run: |
-        gh release create "${tag}" \
-          --title="TW5-Graph ${tag}" \
-          --notes-from-tag \
-          output/*.json
+        # A release created in GitHub's web interface already exists:
+        # attach the bundles to it instead of creating a new one.
+        if gh release view "${tag}" > /dev/null 2>&1; then
+          gh release upload "${tag}" output/*.json --clobber
+        else
+          gh release create "${tag}" \
+            --title="TW5-Graph ${tag}" \
+            --notes-from-tag \
+            output/*.json
+        fi
