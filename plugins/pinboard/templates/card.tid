@@ -2,7 +2,9 @@ title: $:/plugins/lasjoh-toho/pinboard/templates/card
 
 \whitespace trim
 \procedure pinboard-field-body()
-<%if [<pinboard-field>match[text]] %>
+<%if [<pinboard-field>match[text]then<pinboard-recursive>match[yes]] %>
+	<div class="pb-field-recursive">This board</div>
+<%elseif [<pinboard-field>match[text]] %>
 	<$transclude $tiddler=<<currentTiddler>> $mode=block />
 <%elseif [<pinboard-field>match[tags]] %>
 	<div class="pb-field-tags">

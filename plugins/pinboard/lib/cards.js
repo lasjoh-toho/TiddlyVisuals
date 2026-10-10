@@ -155,6 +155,7 @@ methods.renderCardBody = function(card, template, fields) {
 	if (fields.length === 0) {
 		return;
 	}
+	var enclosing = this.enclosingTiddlers();
 	card.widget = this.wiki.makeTranscludeWidget(template, {
 		document: this.document,
 		parentWidget: this.parentWidget,
@@ -162,10 +163,31 @@ methods.renderCardBody = function(card, template, fields) {
 		mode: "block",
 		variables: {
 			currentTiddler: card.id,
-			"pinboard-fields": $tw.utils.stringifyList(fields)
+			"pinboard-fields": $tw.utils.stringifyList(fields),
+			// A card must not render a board it is already part of.
+			"pinboard-enclosing": $tw.utils.stringifyList(enclosing.concat([card.id])),
+			"pinboard-recursive": enclosing.indexOf(card.id) >= 0 ? "yes" : "no"
 		}
 	});
 	card.widget.render(card.body, null);
+};
+
+/*
+Tiddlers this board lives in: its store, the tiddler showing it, and the
+cards of any boards around it.
+*/
+methods.enclosingTiddlers = function() {
+	var parent = this.parentWidget;
+	var get = function(name) {
+		return (parent && parent.getVariable) ? parent.getVariable(name) : undefined;
+	};
+	var list = $tw.utils.parseStringArray(get("pinboard-enclosing") || "") || [];
+	[this.graph.store, get("storyTiddler")].forEach(function(title) {
+		if (title && list.indexOf(title) < 0) {
+			list.push(title);
+		}
+	});
+	return list;
 };
 
 methods.refreshCards = function(changes) {

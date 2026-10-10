@@ -177,6 +177,7 @@ type: text/vnd.tiddlywiki
 	color: var(--pb-muted);
 	margin-right: 6px;
 }
+.pb-field-recursive { color: var(--pb-muted); font-style: italic; }
 .pb-field-tags .tc-tag-list-item { display: inline-block; margin: 0 4px 4px 0; }
 
 /* Tools appear on hover and keep a constant screen size. */
