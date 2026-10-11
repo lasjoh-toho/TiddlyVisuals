@@ -52,6 +52,20 @@ footer: <$importvariables filter="[all[current]]"><$button actions=<<select-acce
 	$mode=inline
 />
 
+<%if [all[current]has[create-button]then{$:/temp/graph/select}trim[]!is[blank]!is[tiddler]!is[shadow]] %>
+
+<p class="graph-select-create">
+
+<$button class="tc-btn-big-green graph-create-button" actions="""<$action-setfield $tiddler="$:/temp/graph/select/tiddler" text={{{ [{$:/temp/graph/select}trim[]] }}} /><<select-accept-actions>>""">
+
+{{$:/core/images/new-button}} <$text text="Create " /><strong><$text text={{{ [{$:/temp/graph/select}trim[]] }}} /></strong>
+
+</$button>
+
+</p>
+
+<%endif%>
+
 <p>
 
 <$linkcatcher actions=<<select-click-actions>> >

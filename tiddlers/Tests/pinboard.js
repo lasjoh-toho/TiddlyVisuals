@@ -141,6 +141,39 @@ it("bounds rotated shapes and keeps effects", function() {
 	expect(Model.parseDoc(JSON.stringify({cards: {A: {exit: "t2"}}})).cards.A).toEqual({exit: "t2"});
 });
 
+it("cuts long text at the first break and finds the first image", function() {
+	var Text = require("$:/plugins/lasjoh-toho/pinboard/lib/text.js");
+	expect(Text.excerpt("One<br>two")).toBe("One");
+	expect(Text.excerpt("One<br/>two")).toBe("One");
+	expect(Text.excerpt("One line\nstill one\n\nSecond paragraph")).toBe("One line\nstill one");
+	expect(Text.excerpt("No break at all")).toBe("No break at all");
+	var wiki = new $tw.Wiki();
+	wiki.addTiddler({title: "pic.png", type: "image/png", text: "AAAA"});
+	wiki.addTiddler({title: "A", text: "Intro\n\n<img src='x.jpg'> and [img[pic.png]]"});
+	wiki.addTiddler({title: "B", text: "Intro {{pic.png}} then [img width=20 [other.png]]"});
+	wiki.addTiddler({title: "C", text: "Just text {{A}}"});
+	expect(Text.firstImage(wiki, "A")).toBe("<img src='x.jpg'>");
+	expect(Text.firstImage(wiki, "B")).toBe("[img[pic.png]]");
+	expect(Text.firstImage(wiki, "C")).toBe("");
+	expect(Text.firstImage(wiki, "pic.png")).toBe("[img[pic.png]]");
+	expect(wiki.filterTiddlers("[[A]pinboardexcerpt[]]")).toEqual(["Intro"]);
+	expect(wiki.filterTiddlers("[[B]pinboardimage[]]")).toEqual(["[img[pic.png]]"]);
+});
+
+it("keeps text modes, hidden shapes and the background", function() {
+	var doc = Model.parseDoc(JSON.stringify({
+		cards: {A: {textMode: "break", presentMode: "full"}, B: {textMode: "bogus"}},
+		shapes: [{id: "s", type: "rect", x: 0, y: 0, w: 1, h: 1, hidden: true}],
+		background: {color: "#123456", pattern: "grid", image: "Pic", junk: 1},
+		view: {x: 0, y: 0, scale: 1}}));
+	expect(doc.cards.A).toEqual({textMode: "break", presentMode: "full"});
+	expect(doc.cards.B).toEqual({});
+	expect(doc.shapes[0].hidden).toBe(true);
+	expect(doc.background).toEqual({color: "#123456", pattern: "grid", image: "Pic"});
+	expect(Model.parseDoc(JSON.stringify({background: {pattern: "zigzag"}})).background).toBeUndefined();
+	expect(Model.parseDoc(Model.serializeDoc(doc)).background).toEqual(doc.background);
+});
+
 it("smooths and simplifies strokes", function() {
 	expect(Model.smoothPath([[0, 0], [10, 0]])).toBe("M0 0L10 0");
 	expect(Model.smoothPath([[0, 0], [10, 0], [20, 10]])).toBe("M0 0Q10 0 15 5L20 10");

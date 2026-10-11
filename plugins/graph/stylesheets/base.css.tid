@@ -26,6 +26,26 @@ tags: $:/tags/Stylesheet
 	flex-grow: 1;
 }
 
+/*** Select modal ***/
+
+.graph-select-create {
+	margin: 0.6em 0;
+}
+
+.graph-select-create .graph-create-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	padding: 0.4em 1em;
+	border-radius: 0.4em;
+}
+
+.graph-select-create .graph-create-button svg {
+	width: 1em;
+	height: 1em;
+	fill: currentColor;
+}
+
 /*** Basic graph overlay options ***/
 
 .graph-overlay {

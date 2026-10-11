@@ -1,0 +1,11 @@
+created: 20261011120000000
+
+Pinboard 0.2, shaped by first user feedback:
+
+* The tiddler selection dialog offers a ''Create'' button for titles that don't exist yet.
+* Long tiddlers: cards can show the whole text, the text up to the first break, the first image, or both, with a separate choice for the presentation.
+* Menus split into a drawing dock, a navigation menu (with the zoom "Lupe", background settings and fullscreen) and a presentation menu (frames, path, layers).
+* A layers panel; layers and presentation stops reorder by dragging.
+* Sticky notes turn into tiddlers; cards get a link button for new edges.
+* The tiddler viewer fits its content; images open in a zoomable lightbox.
+* Configurable board background: color, pattern and picture.

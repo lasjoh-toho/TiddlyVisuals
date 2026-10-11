@@ -3,6 +3,7 @@ subtitle: Select tiddler
 first-search-filter: [!is[system]!is[draft]search:title{$:/temp/graph/select}sort[title]limit[10]]
 footer: {{$:/plugins/flibbles/graph/ui/Modals/Select!!footer}}
 mask-closable: yes
+create-button: yes
 
 <p class="tc-edit-field-add">
 

@@ -24,6 +24,7 @@ The pinboard document is stored as JSON in a field of the store tiddler:
 var BOX_TYPES = {rect: true, ellipse: true, text: true, sticky: true, frame: true};
 var POINT_TYPES = {pen: true, highlighter: true, line: true, arrow: true};
 var STEP_KINDS = {frame: true, card: true, shape: true, view: true};
+var TEXT_MODES = {full: true, "break": true, image: true, imagebreak: true};
 
 exports.SHAPE_TYPES = Object.keys(BOX_TYPES).concat(Object.keys(POINT_TYPES));
 
@@ -77,6 +78,9 @@ exports.serializeDoc = function(doc) {
 	if (doc.view) {
 		out.view = doc.view;
 	}
+	if (doc.background && Object.keys(doc.background).length) {
+		out.background = doc.background;
+	}
 	return JSON.stringify(out);
 };
 
@@ -115,6 +119,20 @@ exports.normalizeDoc = function(doc) {
 			}
 		}
 	}
+	if (doc.background && typeof doc.background === "object") {
+		var bg = {};
+		["color", "pattern", "image"].forEach(function(key) {
+			if (typeof doc.background[key] === "string" && doc.background[key]) {
+				bg[key] = doc.background[key];
+			}
+		});
+		if (bg.pattern && ["none", "dots", "grid", "lines"].indexOf(bg.pattern) < 0) {
+			delete bg.pattern;
+		}
+		if (Object.keys(bg).length) {
+			out.background = bg;
+		}
+	}
 	if (doc.view && typeof doc.view === "object") {
 		var scale = num(doc.view.scale, 0);
 		if (scale > 0) {
@@ -151,6 +169,11 @@ function normalizeCard(card) {
 	if (typeof card.fields === "string") {
 		out.fields = card.fields;
 	}
+	["textMode", "presentMode"].forEach(function(key) {
+		if (TEXT_MODES[card[key]]) {
+			out[key] = card[key];
+		}
+	});
 	copyEffects(card, out);
 	return out;
 }
@@ -199,6 +222,9 @@ exports.normalizeShape = function(shape) {
 		if (rot) {
 			out.rot = rot;
 		}
+	}
+	if (shape.hidden === true) {
+		out.hidden = true;
 	}
 	copyEffects(shape, out);
 	return out;

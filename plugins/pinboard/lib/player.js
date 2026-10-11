@@ -31,16 +31,16 @@ var SVGNS = "http://www.w3.org/2000/svg";
 var PREVIEW_W = 240, PREVIEW_H = 150;
 
 var ICONS = {
-	left: "M15 6l-6 6 6 6",
-	right: "M9 6l6 6-6 6",
-	fit: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+	left: "M19 12H5M11 6l-6 6 6 6",
+	right: "M5 12h14M13 6l6 6-6 6",
+	fit: "M3 6.5l6-3 6 3 6-3v14l-6 3-6-3-6 3zM9 3.5v14M15 6.5v14",
 	close: "M6 6l12 12M18 6L6 18",
 	pen: "M4 20l4-1 11-11-3-3L5 16l-1 4zM14 6l3 3",
 	highlighter: "M4 20h7M9 15l-3 3 2 2 3-3M9 15l7-11 4 3-8 11z",
 	text: "M5 6V4h14v2M12 4v16M9 20h6",
 	eraser: "M8 20h12M5 15l9-9 5 5-8 8H8z",
 	trash: "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13",
-	fullscreen: "M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"
+	fullscreen: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"
 };
 
 exports.create = function(Camera, env) {
@@ -109,7 +109,8 @@ P.stop = function() {
 		l[0].removeEventListener(l[1], l[2], l[3]);
 	}
 	this.listeners = [];
-	if (this.doc.fullscreenElement === this.root && this.doc.exitFullscreen) {
+	// Only leave fullscreen if the presentation entered it.
+	if (this.enteredFullscreen && this.doc.fullscreenElement === this.root && this.doc.exitFullscreen) {
 		try {
 			var promise = this.doc.exitFullscreen();
 			promise && promise.catch && promise.catch(function() {});
@@ -222,6 +223,28 @@ P.showOverview = function() {
 	}
 };
 
+/*
+A stop's target changed size after arriving (e.g. images inside it
+loaded): take the new rectangle and, if it is the current stop, aim
+again.
+*/
+P.updateStepRect = function(index, rect) {
+	var step = this.steps[index];
+	if (!step || !rect) {
+		return;
+	}
+	var r = step.rect;
+	if (Math.abs(r.x - rect.x) < 0.5 && Math.abs(r.y - rect.y) < 0.5 && Math.abs(r.w - rect.w) < 0.5 && Math.abs(r.h - rect.h) < 0.5) {
+		return;
+	}
+	step.rect = rect;
+	delete this.previews[index];
+	if (index === this.index) {
+		var size = this.viewSize();
+		this.animateTo(this.cameraForStep(step, size.w, size.h));
+	}
+};
+
 P.reaim = function() {
 	if (this.index >= 0 && this.index < this.steps.length) {
 		this.goTo(this.index, true);
@@ -293,8 +316,8 @@ P.buildUi = function() {
 		info,
 		button(doc, "right", labels.next || "Next (\u2192, Space)", function() { self.next(); }),
 		button(doc, "fit", labels.overview || "Overview (O)", function() { self.showOverview(); }),
-		this.env.standalone ?
-			button(doc, "fullscreen", labels.fullscreen || "Fullscreen (F)", function() { self.toggleFullscreen(); }) :
+		button(doc, "fullscreen", labels.fullscreen || "Fullscreen on/off (F)", function() { self.toggleFullscreen(); }),
+		this.env.standalone ? null :
 			button(doc, "close", labels.exit || "End presentation (Esc)", function() { self.stop(); })
 	]);
 	this.progress = el(doc, "div", "pb-present-progress", [this.stack, bar]);
@@ -399,6 +422,7 @@ P.previewFor = function(index) {
 
 P.enterFullscreen = function() {
 	if (this.root.requestFullscreen && !this.doc.fullscreenElement) {
+		this.enteredFullscreen = true;
 		try {
 			var promise = this.root.requestFullscreen();
 			promise && promise.catch && promise.catch(function() {});
@@ -408,6 +432,9 @@ P.enterFullscreen = function() {
 
 P.toggleFullscreen = function() {
 	if (this.doc.fullscreenElement) {
+		// Leaving fullscreen with the button keeps presenting.
+		this.togglingFullscreen = true;
+		this.enteredFullscreen = false;
 		this.doc.exitFullscreen && this.doc.exitFullscreen();
 	} else {
 		this.enterFullscreen();
@@ -418,10 +445,12 @@ P.onFullscreenChange = function() {
 	var self = this;
 	if (this.doc.fullscreenElement === this.root) {
 		this.wentFullscreen = true;
-	} else if (this.wentFullscreen && !this.env.standalone) {
+	} else if (this.wentFullscreen && this.enteredFullscreen && !this.env.standalone && !this.togglingFullscreen) {
+		// Esc in fullscreen ends the presentation the presentation started.
 		this.stop();
 		return;
 	}
+	this.togglingFullscreen = false;
 	setTimeout(function() { !self.stopped && self.reaim(); }, 60);
 };
 

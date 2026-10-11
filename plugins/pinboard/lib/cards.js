@@ -16,6 +16,8 @@ var Dom = require("./dom.js");
 
 var TEMPLATE = "$:/plugins/lasjoh-toho/pinboard/templates/card";
 var DEFAULT_WIDTH = 240;
+// Cards the presentation shows in a fuller version get at least this wide.
+var PRESENT_WIDTH = 520;
 
 var methods = exports.methods = {};
 
@@ -28,6 +30,27 @@ methods.cardFields = function(id) {
 	var stored = this.data.cards[id];
 	var node = this.nodes[id] || {};
 	return Model.resolveFields(stored ? stored.fields : undefined, node.fields, this.graph.fields);
+};
+
+var TEXT_MODES = ["full", "break", "image", "imagebreak"];
+exports.TEXT_MODES = TEXT_MODES;
+
+/*
+How a card shows its text on the board and when the presentation focuses
+it: the per-card choice, else the graph's default. "same" (or nothing)
+for the presentation means: as on the board.
+*/
+methods.cardTextModes = function(id) {
+	var stored = this.data.cards[id] || {};
+	var board = stored.textMode || this.graph.textMode || "full";
+	var present = stored.presentMode || this.graph.presentTextMode || "same";
+	if (TEXT_MODES.indexOf(board) < 0) {
+		board = "full";
+	}
+	if (TEXT_MODES.indexOf(present) < 0) {
+		present = board;
+	}
+	return {board: board, present: present};
 };
 
 methods.syncCard = function(id) {
@@ -92,11 +115,17 @@ methods.syncCard = function(id) {
 	$tw.utils.toggleClass(card.el, "pb-card-notitle", !showTitle);
 	$tw.utils.toggleClass(card.el, "pb-card-nobody", bodyFields.length === 0);
 	var template = node.template || this.graph.cardTemplate || TEMPLATE;
-	var renderKey = template + "\n" + bodyFields.join("\n");
+	var modes = this.cardTextModes(id);
+	var hasPresent = modes.present !== modes.board && bodyFields.indexOf("text") >= 0;
+	var renderKey = [template, modes.board, hasPresent ? modes.present : ""].concat(bodyFields).join("\n");
 	if (card.renderKey !== renderKey) {
 		card.renderKey = renderKey;
-		this.renderCardBody(card, template, bodyFields);
+		card.widget = this.renderCardBody(card.body, card.widget, card.id, template, bodyFields, modes.board);
+		card.presentWidget = this.renderCardBody(card.present, card.presentWidget, card.id, template, hasPresent ? bodyFields : [], modes.present);
 	}
+	$tw.utils.toggleClass(card.el, "pb-has-present", hasPresent);
+	card.el.style.setProperty("--pb-present-w", Math.max(card.w, PRESENT_WIDTH) + "px");
+	card.el.style.setProperty("--pb-present-shift", ((card.w - Math.max(card.w, PRESENT_WIDTH)) / 2) + "px");
 	// Tools
 	var editable = this.isEditable();
 	card.deleteBtn.style.display = this.can("nodes", id, "delete") ? "" : "none";
@@ -106,6 +135,7 @@ methods.syncCard = function(id) {
 	$tw.utils.toggleClass(card.effectsBtn, "pb-active", !!(stored.build || stored.exit));
 	card.resize.style.display = editable ? "" : "none";
 	card.connector.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
+	card.linkBtn.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
 	if (this.chooser && this.chooser.id === id) {
 		this.renderChooser();
 	}
@@ -117,11 +147,15 @@ methods.createCard = function(id) {
 	card.label = Dom.el(doc, "span", {"class": "pb-card-label"});
 	card.head = Dom.el(doc, "div", {"class": "pb-card-head"}, [card.label]);
 	card.body = Dom.el(doc, "div", {"class": "pb-card-body"});
+	card.present = Dom.el(doc, "div", {"class": "pb-card-body pb-card-present"});
 	card.deleteBtn = Dom.button(doc, "trash", "Remove from board", function(e) {
 		self.fire("nodes", id, "delete", e);
 	});
 	card.fieldsBtn = Dom.button(doc, "fields", "Choose shown fields", function(e) {
 		self.openChooser(id);
+	});
+	card.linkBtn = Dom.button(doc, "link", "Link to another card (then click the other card)", function() {
+		self.startLinking(id);
 	});
 	card.stepBtn = Dom.button(doc, "target", "Add to presentation path", function() {
 		self.addStep({kind: "card", ref: id});
@@ -131,8 +165,8 @@ methods.createCard = function(id) {
 	});
 	card.tools = Dom.el(doc, "div", {"class": "pb-card-tools pb-chrome"}, [
 		Dom.button(doc, "expand", "View tiddler", function() { self.openModal(id); }),
-		Dom.button(doc, "open", "Open in story river", function(e) { self.navigate(id, e); }),
 		card.fieldsBtn,
+		card.linkBtn,
 		card.stepBtn,
 		card.effectsBtn,
 		card.deleteBtn
@@ -140,36 +174,41 @@ methods.createCard = function(id) {
 	card.resize = Dom.el(doc, "div", {"class": "pb-card-resize", "data-pb-card-part": "resize", title: "Resize"});
 	card.connector = Dom.el(doc, "div", {"class": "pb-card-connector", "data-pb-card-part": "connect", title: "Drag to another card to connect"});
 	card.el = Dom.el(doc, "div", {"class": "pb-card", "data-pb-id": id}, [
-		card.head, card.body, card.tools, card.resize, card.connector
+		card.head, card.body, card.present, card.tools, card.resize, card.connector
 	]);
 	this.cardLayer.appendChild(card.el);
 	this.cards[id] = card;
 	return card;
 };
 
-methods.renderCardBody = function(card, template, fields) {
-	if (card.widget) {
-		Dom.clear(card.body);
-		card.widget = null;
+/*
+Renders the card template into `container`, replacing what was there.
+Returns the new widget tree (or null when there is nothing to show).
+*/
+methods.renderCardBody = function(container, oldWidget, id, template, fields, textMode) {
+	if (oldWidget) {
+		Dom.clear(container);
 	}
 	if (fields.length === 0) {
-		return;
+		return null;
 	}
 	var enclosing = this.enclosingTiddlers();
-	card.widget = this.wiki.makeTranscludeWidget(template, {
+	var widget = this.wiki.makeTranscludeWidget(template, {
 		document: this.document,
 		parentWidget: this.parentWidget,
 		importPageMacros: true,
 		mode: "block",
 		variables: {
-			currentTiddler: card.id,
+			currentTiddler: id,
 			"pinboard-fields": $tw.utils.stringifyList(fields),
+			"pinboard-text-mode": textMode,
 			// A card must not render a board it is already part of.
-			"pinboard-enclosing": $tw.utils.stringifyList(enclosing.concat([card.id])),
-			"pinboard-recursive": enclosing.indexOf(card.id) >= 0 ? "yes" : "no"
+			"pinboard-enclosing": $tw.utils.stringifyList(enclosing.concat([id])),
+			"pinboard-recursive": enclosing.indexOf(id) >= 0 ? "yes" : "no"
 		}
 	});
-	card.widget.render(card.body, null);
+	widget.render(container, null);
+	return widget;
 };
 
 /*
@@ -193,9 +232,8 @@ methods.enclosingTiddlers = function() {
 methods.refreshCards = function(changes) {
 	for (var id in this.cards) {
 		var card = this.cards[id];
-		if (card.widget) {
-			card.widget.refresh(changes);
-		}
+		card.widget && card.widget.refresh(changes);
+		card.presentWidget && card.presentWidget.refresh(changes);
 	}
 	if (this.chooser && changes[this.chooser.id]) {
 		this.renderChooser();
@@ -207,9 +245,8 @@ methods.removeCard = function(id) {
 	if (!card) {
 		return;
 	}
-	if (card.widget) {
-		Dom.clear(card.body);
-	}
+	Dom.clear(card.body);
+	Dom.clear(card.present);
 	Dom.remove(card.el);
 	delete this.cards[id];
 	if (this.selection && this.selection.type === "card" && this.selection.id === id) {
@@ -306,6 +343,22 @@ methods.cardRect = function(id) {
 };
 
 /*
+The rectangle a card takes when the presentation stops at it: wider and
+as tall as its presentation text, when it has one (pb-has-present).
+*/
+methods.presentRect = function(id) {
+	var rect = this.cardRect(id);
+	var card = this.cards[id];
+	if (!rect || !card.el.classList.contains("pb-has-present")) {
+		return rect;
+	}
+	card.el.classList.add("pb-measure-present");
+	var w = card.el.offsetWidth, h = card.el.offsetHeight;
+	card.el.classList.remove("pb-measure-present");
+	return {x: card.pos.x - w / 2, y: rect.y, w: w, h: h};
+};
+
+/*
 Records a card's position: through the node's "free" actions when the
 graph defines them (so TW5-Graph stores it the usual way), otherwise on
 the board itself.
@@ -335,6 +388,32 @@ methods.persistCardPosition = function(id, deferred) {
 	}
 };
 
+/*** Linking: the card's link button, then a click on another card ***/
+
+methods.startLinking = function(id) {
+	this.closeChooser();
+	this.linking = {from: id};
+	this.root.classList.add("pb-linking");
+	this.showHint("Click the card to link \u201c" + (this.nodes[id] && this.nodes[id].label || id) + "\u201d to \u2014 Esc cancels");
+};
+
+methods.stopLinking = function() {
+	if (this.linking) {
+		this.linking = null;
+		this.root.classList.remove("pb-linking");
+		this.showHint(null);
+	}
+};
+
+methods.showHint = function(text) {
+	if (!this.hint) {
+		this.hint = Dom.el(this.document, "div", {"class": "pb-hint pb-chrome"});
+		this.root.appendChild(this.hint);
+	}
+	this.hint.textContent = text || "";
+	this.hint.style.display = text ? "" : "none";
+};
+
 /*** Card gestures ***/
 
 methods.startCardDrag = function(start, id) {
@@ -362,6 +441,14 @@ methods.startCardDrag = function(start, id) {
 		onEnd: function(g, world, event) {
 			card.el.classList.remove("pb-dragging");
 			this.persistCardPosition(id);
+		},
+		onClick: function() {
+			var target = start.event.target;
+			if (Dom.closest(target, "[data-pb-more]", card.el)) {
+				this.openModal(id);
+			} else if (target.tagName === "IMG" && Dom.closest(target, ".pb-card-body", card.el)) {
+				this.openLightbox(target.currentSrc || target.src, target.alt);
+			}
 		},
 		onCancel: function() {
 			card.el.classList.remove("pb-dragging");
@@ -501,10 +588,58 @@ methods.renderChooser = function() {
 	]));
 	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-sub", text: id}));
 	el.appendChild(Dom.el(doc, "div", {"class": "pb-chooser-list"}, rows));
+	if (chosen.indexOf("text") >= 0) {
+		el.appendChild(this.renderTextModeChoice(id));
+	}
 	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-foot"}, [
 		Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: custom ? "Reset to default" : "Using default", disabled: custom ? undefined : true,
 			onclick: function() { setFields(null); }})
 	]));
+};
+
+var TEXT_MODE_LABELS = {
+	full: "Whole text",
+	"break": "Text up to the first break",
+	image: "First image",
+	imagebreak: "First image + text up to the first break"
+};
+
+/*
+Two choices for long tiddlers: how much of the text the card shows on the
+board, and how much when the presentation stops at it.
+*/
+methods.renderTextModeChoice = function(id) {
+	var self = this, doc = this.document;
+	var stored = this.data.cards[id] || {};
+	var select = function(field, current, sameLabel) {
+		var sel = Dom.el(doc, "select", {"class": "pb-select"});
+		if (sameLabel) {
+			sel.appendChild(Dom.el(doc, "option", {value: "", text: sameLabel}));
+		}
+		TEXT_MODES.forEach(function(mode) {
+			sel.appendChild(Dom.el(doc, "option", {value: mode, text: TEXT_MODE_LABELS[mode]}));
+		});
+		sel.value = current || "";
+		sel.addEventListener("change", function() {
+			self.checkpoint();
+			var entry = self.data.cards[id] = self.data.cards[id] || {};
+			if (sel.value) {
+				entry[field] = sel.value;
+			} else {
+				delete entry[field];
+			}
+			self.syncCard(id);
+			self.commit();
+		});
+		return sel;
+	};
+	var modes = this.cardTextModes(id);
+	return Dom.el(doc, "div", {"class": "pb-text-modes"}, [
+		Dom.el(doc, "label", {"class": "pb-field-row"}, ["Text on the board",
+			select("textMode", stored.textMode || modes.board, null)]),
+		Dom.el(doc, "label", {"class": "pb-field-row"}, ["Text in the presentation",
+			select("presentMode", stored.presentMode, "Same as on the board")])
+	]);
 };
 
 methods.positionPopups = function() {
