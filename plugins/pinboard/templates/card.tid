@@ -1,11 +1,49 @@
 title: $:/plugins/lasjoh-toho/pinboard/templates/card
 
 \whitespace trim
+
+\procedure pinboard-more()
+<span class="pb-more" data-pb-more="yes" title="Show the whole tiddler">more…</span>
+\end pinboard-more
+
+\procedure pinboard-text()
+<$let
+	mode={{{ [<pinboard-text-mode>!is[blank]else[full]] }}}
+	wikitext={{{ [<currentTiddler>get[type]else[text/vnd.tiddlywiki]match[text/vnd.tiddlywiki]then[yes]] }}}>
+<%if [<mode>match[full]] [<wikitext>!match[yes]] [<currentTiddler>is[image]] +[limit[1]] %>
+	<$transclude $tiddler=<<currentTiddler>> $mode=block />
+<%else%>
+	<%if [<mode>match[image]] [<mode>match[imagebreak]] +[limit[1]] %>
+		<$let image={{{ [<currentTiddler>pinboardimage[]] }}}>
+			<%if [<image>!is[blank]] %>
+				<div class="pb-text-image"><$transclude $variable="image" $mode=block /></div>
+			<%endif%>
+		</$let>
+	<%endif%>
+	<%if [<mode>match[break]] [<mode>match[imagebreak]] +[limit[1]] %>
+		<$let
+			excerpt={{{ [<currentTiddler>pinboardexcerpt[]] }}}
+			fullLength={{{ [<currentTiddler>get[text]trim[]length[]] }}}
+			shortLength={{{ [<excerpt>trim[]length[]] }}}>
+			<div class="pb-text-excerpt"><$transclude $variable="excerpt" $mode=block /></div>
+			<%if [<fullLength>compare:number:gt<shortLength>] %>
+				<<pinboard-more>>
+			<%endif%>
+		</$let>
+	<%else%>
+		<%if [<currentTiddler>get[text]trim[]!is[blank]] %>
+			<<pinboard-more>>
+		<%endif%>
+	<%endif%>
+<%endif%>
+</$let>
+\end pinboard-text
+
 \procedure pinboard-field-body()
 <%if [<pinboard-field>match[text]then<pinboard-recursive>match[yes]] %>
 	<div class="pb-field-recursive">This board</div>
 <%elseif [<pinboard-field>match[text]] %>
-	<$transclude $tiddler=<<currentTiddler>> $mode=block />
+	<<pinboard-text>>
 <%elseif [<pinboard-field>match[tags]] %>
 	<div class="pb-field-tags">
 		<$list filter="[<currentTiddler>tags[]]" template="$:/core/ui/TagTemplate" storyview="pop" />

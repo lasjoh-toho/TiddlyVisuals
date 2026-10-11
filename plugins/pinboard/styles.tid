@@ -46,9 +46,32 @@ type: text/vnd.tiddlywiki
 	cursor: default;
 }
 
-.pb-root.pb-grid .pb-viewport {
-	background-image: radial-gradient(circle, color-mix(in srgb, var(--pb-fg) 18%, transparent) 1px, transparent 1.2px);
+.pb-root {
+	--pb-pattern: color-mix(in srgb, var(--pb-fg) 18%, transparent);
+	background-size: cover;
+	background-position: center;
 }
+.pb-root.pb-has-bg { --pb-pattern: color-mix(in srgb, var(--pb-bg) 70%, #808080); }
+.pb-root.pb-grid.pb-pattern-dots .pb-viewport,
+.pb-root.pb-grid:not(.pb-pattern-grid):not(.pb-pattern-lines) .pb-viewport {
+	background-image: radial-gradient(circle, var(--pb-pattern) 1px, transparent 1.2px);
+}
+.pb-root.pb-grid.pb-pattern-grid .pb-viewport {
+	background-image:
+		linear-gradient(to right, var(--pb-pattern) 1px, transparent 1px),
+		linear-gradient(to bottom, var(--pb-pattern) 1px, transparent 1px);
+}
+.pb-root.pb-grid.pb-pattern-lines .pb-viewport {
+	background-image: linear-gradient(to bottom, var(--pb-pattern) 1px, transparent 1px);
+}
+.pb-root:fullscreen { background-color: var(--pb-bg); }
+
+/* Hide media (Lupe menu) */
+.pb-root.pb-hide-media .pb-card-body img,
+.pb-root.pb-hide-media .pb-card-body svg:not(.pb-icon),
+.pb-root.pb-hide-media .pb-card-body video,
+.pb-root.pb-hide-media .pb-card-body iframe,
+.pb-root.pb-hide-media .pb-card-body .pb-text-image { display: none; }
 
 .pb-root[data-pb-tool="hand"] .pb-viewport,
 .pb-root.pb-space .pb-viewport,
@@ -163,6 +186,34 @@ type: text/vnd.tiddlywiki
 }
 
 .pb-card-notitle .pb-card-body { padding-top: 10px; }
+
+/* The fuller presentation version of a card replaces the board version
+   while the presentation stops at it. */
+.pb-card > .pb-card-present { display: none; }
+.pb-presenting .pb-card.pb-spotlight.pb-has-present,
+.pb-card.pb-measure-present.pb-has-present {
+	width: var(--pb-present-w) !important;
+	height: auto !important;
+	margin-left: var(--pb-present-shift);
+	z-index: 5;
+}
+.pb-presenting .pb-card.pb-spotlight.pb-has-present > .pb-card-body,
+.pb-card.pb-measure-present.pb-has-present > .pb-card-body { display: none; }
+.pb-presenting .pb-card.pb-spotlight.pb-has-present > .pb-card-present,
+.pb-card.pb-measure-present.pb-has-present > .pb-card-present { display: block; }
+
+.pb-card img { -webkit-user-drag: none; user-drag: none; }
+.pb-card-body img { cursor: zoom-in; }
+.pb-more {
+	display: inline-block;
+	margin-top: 4px;
+	color: var(--pb-accent);
+	font-size: .9em;
+	cursor: pointer;
+}
+.pb-more:hover { text-decoration: underline; }
+.pb-text-image img { display: block; max-width: 100%; border-radius: 6px; }
+.pb-text-image + .pb-text-excerpt { margin-top: 6px; }
 .pb-card-nobody .pb-card-body { display: none; }
 .pb-card-fixed .pb-card-body { flex: 1; overflow: auto; }
 
@@ -422,6 +473,14 @@ type: text/vnd.tiddlywiki
 .pb-btn-primary { background: var(--pb-accent); color: <<colour background>>; }
 .pb-btn-primary:hover { background: color-mix(in srgb, var(--pb-accent) 85%, black); }
 
+/* Themes fill svgs inside (disabled) buttons; icons are outlines. */
+.pb-root .pb-icon,
+.pb-root .pb-icon path,
+.pb-modal .pb-icon,
+.pb-modal .pb-icon path,
+.pb-lightbox .pb-icon,
+.pb-lightbox .pb-icon path { fill: none !important; }
+
 .pb-icon {
 	width: 19px;
 	height: 19px;
@@ -487,12 +546,42 @@ type: text/vnd.tiddlywiki
 }
 
 .pb-zoom-label {
-	min-width: 52px;
-	border: none;
-	background: transparent;
-	color: var(--pb-fg);
+	min-width: 42px;
+	text-align: center;
+	font-size: 12px;
+	color: var(--pb-muted);
 	font-variant-numeric: tabular-nums;
-	cursor: pointer;
+}
+
+.pb-nav-popup {
+	right: 10px;
+	bottom: 60px;
+	width: 270px;
+	display: none;
+	gap: 6px;
+}
+.pb-popup.pb-nav-popup:not(.pb-open) { display: none; }
+.pb-nav-popup.pb-open { display: flex; }
+.pb-popup-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.pb-popup-row.pb-wrap { flex-wrap: wrap; }
+.pb-popup-label { font-size: 12px; color: var(--pb-muted); margin-top: 4px; }
+.pb-zoom-slider { flex: 1; min-width: 0; }
+.pb-swatch-big { width: 24px; height: 24px; }
+.pb-swatch-auto {
+	background: linear-gradient(135deg, transparent 45%, var(--pb-muted) 47%, var(--pb-muted) 53%, transparent 55%);
+}
+.pb-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 5px 8px;
+	border: 1px solid var(--pb-border);
+	border-radius: 6px;
+	background: var(--pb-panel);
+	color: var(--pb-fg);
 }
 
 .pb-notice {
@@ -619,6 +708,48 @@ type: text/vnd.tiddlywiki
 .pb-step:hover { background: color-mix(in srgb, var(--pb-fg) 6%, transparent); }
 .pb-step.pb-current { background: color-mix(in srgb, var(--pb-accent) 18%, transparent); }
 .pb-step.pb-missing { opacity: .5; }
+.pb-shape-hidden { display: none; }
+.pb-grip {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 26px;
+	color: var(--pb-muted);
+	cursor: grab;
+	touch-action: none;
+}
+.pb-grip .pb-icon { width: 16px; height: 16px; stroke-width: 3; }
+.pb-step.pb-sorting { opacity: .45; }
+.pb-drop-marker {
+	height: 3px;
+	margin: 1px 4px;
+	border-radius: 2px;
+	background: var(--pb-accent);
+	list-style: none;
+}
+.pb-layer-cards {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 4px 0;
+	padding: 5px 8px;
+	border-radius: 8px;
+	font-size: 13px;
+	color: var(--pb-muted);
+	background: color-mix(in srgb, var(--pb-fg) 6%, transparent);
+	list-style: none;
+}
+.pb-layer-cards .pb-icon { width: 16px; height: 16px; }
+.pb-layer-swatch {
+	flex: none;
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	border: 1px solid var(--pb-border);
+	background: var(--pb-swatch);
+}
 
 .pb-step-name {
 	flex: 1;
@@ -895,6 +1026,77 @@ type: text/vnd.tiddlywiki
 	max-width: 100%;
 }
 
+.pb-hint {
+	left: 50%;
+	top: 12px;
+	transform: translateX(-50%);
+	padding: 6px 14px;
+	border-radius: 18px;
+	font-size: 13px;
+	color: #fff;
+	background: rgba(20,20,24,.75);
+	pointer-events: none;
+	white-space: nowrap;
+}
+.pb-root.pb-linking .pb-viewport, .pb-root.pb-linking .pb-card { cursor: crosshair; }
+
+/*** Image lightbox ***/
+
+.pb-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 10002;
+	background: rgba(10,10,14,.92);
+	outline: none;
+	animation: pb-fade .15s ease;
+}
+.pb-lightbox-stage {
+	position: absolute;
+	inset: 0;
+	overflow: auto;
+	display: flex;
+	align-items: safe center;
+	justify-content: safe center;
+	padding: 24px;
+	box-sizing: border-box;
+}
+.pb-lightbox-stage img {
+	display: block;
+	max-width: none;
+	flex: none;
+	cursor: zoom-out;
+	box-shadow: 0 10px 40px rgba(0,0,0,.5);
+	-webkit-user-drag: none;
+}
+.pb-lightbox-stage.pb-fit { overflow: hidden; }
+.pb-lightbox-stage.pb-fit img {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	cursor: zoom-in;
+}
+.pb-lightbox-controls {
+	position: absolute;
+	right: 16px;
+	top: 16px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px;
+	border-radius: 22px;
+	color: #fff;
+	background: rgba(20,20,24,.7);
+	opacity: .5;
+	transition: opacity .15s ease;
+}
+.pb-lightbox:hover .pb-lightbox-controls, .pb-lightbox-controls:focus-within { opacity: 1; }
+@media (hover: none) { .pb-lightbox-controls { opacity: 1; } }
+.pb-lightbox-controls .pb-btn { color: #fff; border-radius: 50%; }
+.pb-lightbox-controls .pb-btn:hover { background: rgba(255,255,255,.18); }
+.pb-lightbox-controls .pb-textbtn { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
+.pb-lightbox-zoom { min-width: 44px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pb-modal-body img { cursor: zoom-in; }
+
 /*** Tiddler viewer ***/
 
 .pb-modal {
@@ -903,6 +1105,7 @@ type: text/vnd.tiddlywiki
 	z-index: 10001;
 	height: 100vh;
 	display: flex;
+	align-items: center;
 	justify-content: center;
 	background: rgba(10, 10, 14, .55);
 	backdrop-filter: blur(4px);
@@ -916,13 +1119,19 @@ type: text/vnd.tiddlywiki
 	position: relative;
 	box-sizing: border-box;
 	width: min(960px, 100vw);
-	height: 100vh;
+	/* As tall as the tiddler needs, up to the whole screen. */
+	max-height: 100vh;
 	overflow-y: auto;
+	border-radius: 14px;
 	background: <<colour tiddler-background>>;
 	color: <<colour foreground>>;
 	box-shadow: 0 0 60px rgba(0,0,0,.35);
-	padding: 56px clamp(18px, 6vw, 72px) 64px;
+	padding: 56px clamp(18px, 6vw, 72px) 44px;
 	outline: none;
+}
+.pb-modal-editing .pb-modal-sheet { height: 100vh; }
+@media (max-width: 960px), (max-height: 600px) {
+	.pb-modal-sheet { border-radius: 0; }
 }
 
 .pb-modal-controls {

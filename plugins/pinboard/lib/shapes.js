@@ -57,7 +57,7 @@ methods.updateShapeEl = function(shape) {
 methods.buildShape = function(shape) {
 	var doc = this.document;
 	var svg = function(tag, attrs) { return Dom.svg(doc, tag, attrs); };
-	var g = svg("g", {"class": "pb-shape pb-shape-" + shape.type, "data-pb-shape": shape.id});
+	var g = svg("g", {"class": "pb-shape pb-shape-" + shape.type + (shape.hidden ? " pb-shape-hidden" : ""), "data-pb-shape": shape.id});
 	var stroke = shape.stroke, fill = shape.fill, width = shape.width;
 	var visual, hit;
 	switch (shape.type) {

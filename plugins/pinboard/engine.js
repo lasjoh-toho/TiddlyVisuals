@@ -33,6 +33,8 @@ exports.properties = {
 		fields: {type: "string", default: "title text", description: "Fields shown on cards unless chosen otherwise per card"},
 		cardTemplate: {type: "string", description: "Tiddler used to render card bodies"},
 		cardWidth: {type: "number", min: 60, default: 240, description: "Default width of new cards"},
+		textMode: {type: "enum", values: ["full", "break", "image", "imagebreak"], default: "full", description: "How much text cards show: everything, up to the first break, the first image, or both"},
+		presentTextMode: {type: "enum", values: ["same", "full", "break", "image", "imagebreak"], default: "same", description: "How much text a card shows when the presentation stops at it"},
 		background: {type: "color", description: "Board background color"},
 		grid: {type: "boolean", default: true, description: "Show a dot grid behind the board"},
 		editable: {type: "boolean", default: true, description: "Show drawing tools and allow editing the board"},
@@ -159,6 +161,7 @@ exports.destroy = function() {
 		this.window.cancelAnimationFrame(this.cameraAnimation);
 	}
 	this.window.removeEventListener("resize", this.onResize);
+	this.document.removeEventListener("fullscreenchange", this.onFullscreenChange);
 	Dom.remove(this.root);
 };
 
@@ -256,9 +259,7 @@ exports.applyChanges = function(objects) {
 
 exports.applyGraphProperties = function() {
 	var g = this.graph;
-	this.root.style.setProperty("--pb-bg", g.background || "");
-	$tw.utils.toggleClass(this.root, "pb-has-bg", !!g.background);
-	$tw.utils.toggleClass(this.root, "pb-grid", g.grid !== false);
+	this.backgroundKey = null;
 	$tw.utils.toggleClass(this.root, "pb-readonly", !this.isEditable());
 	this.updateUi && this.updateUi();
 	// Card templates and default fields may have changed.
@@ -522,7 +523,9 @@ exports.contentBounds = function() {
 		r && rects.push(r);
 	}
 	for (var i = 0; i < this.data.shapes.length; i++) {
-		rects.push(Model.shapeBounds(this.data.shapes[i]));
+		if (!this.data.shapes[i].hidden) {
+			rects.push(Model.shapeBounds(this.data.shapes[i]));
+		}
 	}
 	return Model.unionRects(rects);
 };
@@ -668,6 +671,15 @@ exports.startToolGesture = function(start, target, interactive) {
 	var tool = this.isEditable() ? this.tool : "select";
 	var handle = Dom.closest(target, "[data-pb-handle]", this.viewport);
 	var cardEl = Dom.closest(target, ".pb-card", this.viewport);
+	if (this.linking) {
+		var from = this.linking.from;
+		var to = cardEl && cardEl.getAttribute("data-pb-id");
+		this.stopLinking();
+		if (to && to !== from) {
+			this.fire("graph", null, "addEdge", start.event, {fromTiddler: from, toTiddler: to});
+			return null;
+		}
+	}
 	if (handle) {
 		return this.startHandleGesture(start, handle);
 	}
@@ -1033,6 +1045,7 @@ exports.handleKeyDown = function(event) {
 	} else if (key === "Delete" || key === "Backspace") {
 		this.deleteSelection();
 	} else if (key === "Escape") {
+		this.stopLinking();
 		this.select(null);
 		this.setTool("select");
 	} else if (key === " ") {

@@ -55,10 +55,39 @@ methods.startPresentation = function(index) {
 		onStep: function(i) {
 			self.presentIndex = i;
 			self.stepsOpen && self.renderSteps();
+			self.watchStepSize(steps[i], i);
 		},
 		onStop: function() { self.afterPresentation(); }
 	});
 	this.player.start(index || 0);
+};
+
+/*
+A card's presentation version can grow once it is shown (its images only
+load then). Measure it again on arrival and whenever an image in it
+loads, and let the player re-aim.
+*/
+methods.watchStepSize = function(step, index) {
+	var self = this;
+	if (!step || !step.focus || step.focus.charAt(0) !== "c") {
+		return;
+	}
+	var id = step.focus.substr(2);
+	var card = this.cards[id];
+	if (!card) {
+		return;
+	}
+	var remeasure = function() {
+		if (self.player && self.presentIndex === index) {
+			self.player.updateStepRect(index, self.presentRect(id));
+		}
+	};
+	setTimeout(remeasure, 60);
+	Array.prototype.forEach.call(card.el.querySelectorAll("img"), function(img) {
+		if (!img.complete) {
+			img.addEventListener("load", remeasure, {once: true});
+		}
+	});
 };
 
 methods.stopPresentation = function() {
@@ -107,7 +136,7 @@ methods.stepTarget = function(step) {
 		}
 		return {rect: Model.shapeBounds(shape), rot: 0};
 	case "card":
-		var rect = this.cardRect(step.ref);
+		var rect = this.presenting || this.measuringPresent ? this.presentRect(step.ref) : this.cardRect(step.ref);
 		return rect ? {rect: rect, rot: 0} : null;
 	case "view":
 		return {rect: {x: step.x, y: step.y, w: step.w, h: step.h}, rot: 0};
@@ -117,7 +146,8 @@ methods.stepTarget = function(step) {
 
 methods.playerSteps = function() {
 	var self = this;
-	return this.playableSteps().map(function(step) {
+	this.measuringPresent = true;
+	var steps = this.playableSteps().map(function(step) {
 		var target = self.stepTarget(step);
 		var key = step.kind === "card" ? "c:" + step.ref : (step.kind === "view" ? null : "s:" + step.ref);
 		return {
@@ -130,6 +160,8 @@ methods.playerSteps = function() {
 			occlude: (step.kind === "card" || step.kind === "shape") ? self.coveringShapes(step) : []
 		};
 	});
+	this.measuringPresent = false;
+	return steps;
 };
 
 /*
@@ -157,7 +189,7 @@ methods.coveringShapes = function(step) {
 	var area = Math.max(1, targetRect.w * targetRect.h);
 	var out = [];
 	shapes.forEach(function(shape) {
-		if (shape.type === "frame" || shape.id === step.ref || order(shape) <= targetZ) {
+		if (shape.hidden || shape.type === "frame" || shape.id === step.ref || order(shape) <= targetZ) {
 			return;
 		}
 		var b = Model.shapeBounds(shape);
