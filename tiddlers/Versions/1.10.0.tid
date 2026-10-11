@@ -1,0 +1,9 @@
+created: 20261012120000000
+
+Pinboard 0.3:
+
+* A narrow drawing dock whose groups open flyouts with tools, colors and a size slider; new Bezier curve and polygon tools.
+* The navigation menu sits in the bottom center; its zoom "Lupe" can filter the board by words or a filter expression.
+* Fullscreen keeps TiddlyWiki's own dialogs on top and keeps the view centered.
+* A background picture can stay fixed to the view or lie on the board.
+* The frame tool moved into the presentation path panel.
