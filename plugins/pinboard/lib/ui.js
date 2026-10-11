@@ -16,13 +16,25 @@ var Dom = require("./dom.js");
 var MODAL_TEMPLATE = "$:/plugins/lasjoh-toho/pinboard/templates/modal";
 
 var COLORS = ["#1f2937", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ffffff"];
-var WIDTHS = [2, 4, 8];
-// The paint dock: drawing and annotation only. Selecting, panning and
-// zooming live in the navigation menu, frames in the presentation menu.
-var TOOL_GROUPS = [
-	[["pen", "Pen (P)"], ["highlighter", "Highlighter (M)"], ["eraser", "Eraser (E)"]],
-	[["rect", "Rectangle (R)"], ["ellipse", "Ellipse (O)"], ["line", "Line (L)"], ["arrow", "Arrow (A)"]],
-	[["text", "Text (T)"], ["sticky", "Sticky note (N)"], ["card", "Add tiddler card (C)"]]
+var NOTE_COLORS = ["#fde68a", "#fbcfe8", "#bbf7d0", "#bfdbfe", "#fed7aa", "#e9d5ff", "#ffffff"];
+// The drawing dock: one narrow column. Each group opens a flyout to the
+// side with its tools and their settings. Selecting, panning and zooming
+// live in the navigation menu, frames in the presentation menu.
+var DOCK_GROUPS = [
+	{key: "draw", title: "Draw", options: ["colors", "width"], tools: [
+		["pen", "Pencil (P)"],
+		["highlighter", "Brush (M)"],
+		["curve", "Bezier curve (B): click points, double-click to finish"]]},
+	{key: "shapes", title: "Shapes", options: ["colors", "width", "fill"], tools: [
+		["ellipse", "Circle / ellipse (O)"],
+		["rect", "Rectangle (R)"],
+		["polygon", "Polygon (G): click corners, double-click or click the first corner to close"],
+		["line", "Line (L)"],
+		["arrow", "Arrow (A)"]]},
+	{key: "text", title: "Text", options: ["colors", "fontSize"], tools: [
+		["text", "Text (T)"]]},
+	{key: "notes", title: "Sticky note", options: ["noteColors"], tools: [
+		["sticky", "Sticky note (N)"]]}
 ];
 var MIN_SCALE = 0.05, MAX_SCALE = 8;
 
@@ -40,60 +52,42 @@ methods.buildUi = function() {
 		return btn;
 	};
 	this.toolButtons = Object.create(null);
+	this.groupButtons = Object.create(null);
+	this.groupTool = Object.create(null);
 
-	// Paint / annotation dock (left)
+	// Drawing dock (left)
 	var dock = el("div", {"class": "pb-toolbar pb-chrome", role: "toolbar", "aria-label": "Drawing tools"});
-	TOOL_GROUPS.forEach(function(group) {
-		var g = el("div", {"class": "pb-group"});
-		group.forEach(function(entry) {
-			g.appendChild(toolButton(entry[0], entry[1]));
-		});
-		dock.appendChild(g);
+	DOCK_GROUPS.forEach(function(group) {
+		self.groupTool[group.key] = group.tools[0][0];
+		var btn = Dom.button(doc, group.tools[0][0], group.title, function() {
+			if (self.flyoutGroup === group.key) {
+				self.closeFlyout();
+			} else {
+				self.setTool(self.groupTool[group.key]);
+				self.openFlyout(group.key);
+			}
+		}, group.tools.length > 1 ? "pb-has-flyout" : "");
+		self.groupButtons[group.key] = btn;
+		dock.appendChild(btn);
 	});
-	this.colorButtons = [];
-	var colors = el("div", {"class": "pb-group pb-colors"});
-	COLORS.forEach(function(color) {
-		var btn = el("button", {"class": "pb-swatch", type: "button", title: color, style: {"--pb-swatch": color},
-			onclick: function() { self.applyStyle("stroke", color); }});
-		btn.setAttribute("data-color", color);
-		self.colorButtons.push(btn);
-		colors.appendChild(btn);
-	});
-	this.customColor = el("input", {type: "color", "class": "pb-color-input", title: "Custom color", value: "#1f2937",
-		onchange: function() { self.applyStyle("stroke", self.customColor.value); }});
-	colors.appendChild(this.customColor);
-	dock.appendChild(colors);
-	this.widthButtons = [];
-	var widths = el("div", {"class": "pb-group"});
-	WIDTHS.forEach(function(w) {
-		var btn = el("button", {"class": "pb-btn pb-width", type: "button", title: "Stroke width " + w,
-			onclick: function() { self.applyStyle("width", w); }}, [
-			el("span", {"class": "pb-width-dot", style: {width: (w * 1.6 + 3) + "px", height: (w * 1.6 + 3) + "px"}})
-		]);
-		btn.setAttribute("data-width", w);
-		self.widthButtons.push(btn);
-		widths.appendChild(btn);
-	});
-	this.fillButton = el("button", {"class": "pb-btn pb-fill", type: "button", title: "Fill shapes",
-		onclick: function() {
-			var shape = self.selectedShape();
-			var current = shape ? shape.fill : self.style.fill;
-			self.applyStyle("fill", current && current !== "none" ? "none" : tint(self.style.stroke));
-		}}, [el("span", {"class": "pb-fill-swatch"})]);
-	widths.appendChild(this.fillButton);
-	dock.appendChild(widths);
+	dock.appendChild(el("div", {"class": "pb-dock-sep"}));
+	dock.appendChild(toolButton("eraser", "Eraser (E)"));
+	dock.appendChild(toolButton("card", "Add tiddler card (C)"));
+	dock.appendChild(el("div", {"class": "pb-dock-sep"}));
 	this.undoButton = Dom.button(doc, "undo", "Undo (Ctrl+Z)", function() { self.undo(); });
 	this.redoButton = Dom.button(doc, "redo", "Redo (Ctrl+Shift+Z)", function() { self.redo(); });
-	dock.appendChild(el("div", {"class": "pb-group"}, [this.undoButton, this.redoButton]));
+	dock.appendChild(this.undoButton);
+	dock.appendChild(this.redoButton);
 	this.toolbar = dock;
 	this.root.appendChild(dock);
+	this.flyout = el("div", {"class": "pb-flyout pb-chrome"});
+	this.root.appendChild(this.flyout);
 
 	// Presentation menu (top right)
 	this.stepsButton = Dom.button(doc, "steps", "Presentation path", function() { self.toggleSteps(); });
 	this.layersButton = Dom.button(doc, "layers", "Layers", function() { self.toggleLayers(); });
 	this.presentMenu = el("div", {"class": "pb-topbar pb-chrome", role: "toolbar", "aria-label": "Presentation"}, [
 		Dom.button(doc, "play", "Present (from the first step)", function() { self.startPresentation(0); }, "pb-btn-primary"),
-		toolButton("frame", "Presentation frame (F)"),
 		this.stepsButton,
 		this.layersButton
 	]);
@@ -132,8 +126,14 @@ methods.buildUi = function() {
 	this.root.setAttribute("data-pb-tool", this.tool);
 
 	this.onFullscreenChange = function() {
-		$tw.utils.toggleClass(self.fullscreenButton, "pb-active", doc.fullscreenElement === self.root);
-		self.scheduleRender();
+		if (doc.fullscreenElement === doc.documentElement) {
+			self.pageFullscreen = true;
+		} else if (self.pageFullscreen) {
+			// Esc left fullscreen: the board goes back into the page too.
+			self.pageFullscreen = false;
+			self.fullscreen = false;
+		}
+		self.applyFullscreen();
 	};
 	doc.addEventListener("fullscreenchange", this.onFullscreenChange);
 };
@@ -146,19 +146,21 @@ methods.updateUi = function() {
 		$tw.utils.toggleClass(this.toolButtons[tool], "pb-active", tool === this.tool);
 	}
 	this.toolButtons.card.style.display = this.can("graph", null, "addNode") ? "" : "none";
-	this.toolButtons.frame.style.display = this.isEditable() ? "" : "none";
-	var shape = this.selectedShape();
-	var stroke = shape ? shape.stroke : this.style.stroke;
-	var width = shape ? (shape.type === "highlighter" ? shape.width / 5 : shape.width) : this.style.width;
-	var fill = shape ? shape.fill : this.style.fill;
-	this.colorButtons.forEach(function(btn) {
-		$tw.utils.toggleClass(btn, "pb-active", btn.getAttribute("data-color") === stroke);
+	var self = this;
+	DOCK_GROUPS.forEach(function(group) {
+		var inGroup = group.tools.some(function(t) { return t[0] === self.tool; });
+		if (inGroup) {
+			self.groupTool[group.key] = self.tool;
+		}
+		var btn = self.groupButtons[group.key];
+		$tw.utils.toggleClass(btn, "pb-active", inGroup);
+		var path = btn.querySelector("path");
+		var icon = Dom.icon(self.document, self.groupTool[group.key]).querySelector("path").getAttribute("d");
+		if (path.getAttribute("d") !== icon) {
+			path.setAttribute("d", icon);
+		}
 	});
-	this.widthButtons.forEach(function(btn) {
-		$tw.utils.toggleClass(btn, "pb-active", Number(btn.getAttribute("data-width")) === width);
-	});
-	$tw.utils.toggleClass(this.fillButton, "pb-active", !!fill && fill !== "none");
-	this.fillButton.style.setProperty("--pb-swatch", fill && fill !== "none" ? fill : "transparent");
+	this.syncFlyout();
 	this.undoButton.disabled = this.undoStack.length === 0;
 	this.redoButton.disabled = this.redoStack.length === 0;
 	this.notice.style.display = (!this.graph.store && this.isEditable() &&
@@ -187,19 +189,189 @@ methods.updateZoomLabel = function() {
 	}
 };
 
+/*** Dock flyouts ***/
+
+methods.openFlyout = function(key) {
+	this.flyoutGroup = key;
+	this.renderFlyout();
+	this.updateUi();
+};
+
+methods.closeFlyout = function() {
+	if (this.flyoutGroup) {
+		this.flyoutGroup = null;
+		this.flyout.classList.remove("pb-open");
+		this.updateUi();
+	}
+};
+
+methods.renderFlyout = function() {
+	var doc = this.document, self = this;
+	var group = DOCK_GROUPS.filter(function(g) { return g.key === self.flyoutGroup; })[0];
+	var fly = this.flyout;
+	Dom.clear(fly);
+	this.flyoutRefs = {tools: {}, swatches: [], notes: []};
+	if (!group) {
+		fly.classList.remove("pb-open");
+		return;
+	}
+	var refs = this.flyoutRefs;
+	if (group.tools.length > 1) {
+		var tools = Dom.el(doc, "div", {"class": "pb-flyout-row"});
+		group.tools.forEach(function(t) {
+			var b = Dom.button(doc, t[0], t[1], function() {
+				self.groupTool[group.key] = t[0];
+				self.setTool(t[0]);
+			});
+			refs.tools[t[0]] = b;
+			tools.appendChild(b);
+		});
+		fly.appendChild(tools);
+	}
+	if (group.options.indexOf("colors") >= 0) {
+		var colors = Dom.el(doc, "div", {"class": "pb-flyout-row pb-colors"});
+		COLORS.forEach(function(color) {
+			var b = Dom.el(doc, "button", {"class": "pb-swatch", type: "button", title: color, style: {"--pb-swatch": color},
+				onclick: function() { self.applyStyle("stroke", color); }});
+			b.setAttribute("data-color", color);
+			refs.swatches.push(b);
+			colors.appendChild(b);
+		});
+		refs.custom = Dom.el(doc, "input", {type: "color", "class": "pb-color-input", title: "Custom color", value: "#1f2937",
+			onchange: function() { self.applyStyle("stroke", refs.custom.value); }});
+		colors.appendChild(refs.custom);
+		fly.appendChild(colors);
+	}
+	if (group.options.indexOf("noteColors") >= 0) {
+		var notes = Dom.el(doc, "div", {"class": "pb-flyout-row pb-colors"});
+		NOTE_COLORS.forEach(function(color) {
+			var b = Dom.el(doc, "button", {"class": "pb-swatch pb-swatch-note", type: "button", title: color, style: {"--pb-swatch": color},
+				onclick: function() { self.applyStyle("noteColor", color); }});
+			b.setAttribute("data-color", color);
+			refs.notes.push(b);
+			notes.appendChild(b);
+		});
+		fly.appendChild(notes);
+	}
+	var slider = function(key, label, min, max) {
+		var input = Dom.el(doc, "input", {type: "range", "class": "pb-size-slider", min: String(min), max: String(max), step: "1", title: label});
+		var value = Dom.el(doc, "span", {"class": "pb-size-value"});
+		input.addEventListener("input", function() {
+			value.textContent = input.value;
+			self.applyStyle(key, Number(input.value), true);
+		});
+		input.addEventListener("change", function() { self.commitStyle(); });
+		refs[key] = {input: input, value: value};
+		fly.appendChild(Dom.el(doc, "label", {"class": "pb-flyout-row pb-size-row"}, [
+			Dom.el(doc, "span", {"class": "pb-size-label", text: label}), input, value]));
+	};
+	if (group.options.indexOf("width") >= 0) {
+		slider("width", "Size", 1, 40);
+	}
+	if (group.options.indexOf("fontSize") >= 0) {
+		slider("fontSize", "Size", 10, 96);
+	}
+	if (group.options.indexOf("fill") >= 0) {
+		refs.fill = Dom.el(doc, "button", {"class": "pb-textbtn pb-fill-toggle", type: "button", text: "Fill",
+			onclick: function() {
+				var shape = self.selectedShape();
+				var current = shape ? shape.fill : self.style.fill;
+				self.applyStyle("fill", current && current !== "none" ? "none" : tint(self.style.stroke));
+			}});
+		fly.appendChild(Dom.el(doc, "div", {"class": "pb-flyout-row"}, [refs.fill]));
+	}
+	fly.classList.add("pb-open");
+	// Next to its button.
+	var btn = this.groupButtons[group.key];
+	var dockRect = this.toolbar.getBoundingClientRect(), rootRect = this.root.getBoundingClientRect();
+	var btnRect = btn.getBoundingClientRect();
+	fly.style.left = (dockRect.right - rootRect.left + 8) + "px";
+	var top = btnRect.top - rootRect.top - 6;
+	fly.style.top = Math.max(8, Math.min(top, rootRect.height - fly.offsetHeight - 8)) + "px";
+	this.syncFlyout();
+};
+
+/*
+Shows the current tool and style (or the selected shape's) in the open
+flyout without rebuilding it, so sliders keep working while dragged.
+*/
+methods.syncFlyout = function() {
+	var refs = this.flyoutRefs;
+	if (!refs || !this.flyoutGroup) {
+		return;
+	}
+	var self = this;
+	var shape = this.selectedShape();
+	var stroke = shape ? shape.stroke : this.style.stroke;
+	var width = shape && Model.isPointType(shape.type) || (shape && !Model.hasText(shape.type)) ?
+		(shape.type === "highlighter" ? shape.width / 5 : shape.width) : this.style.width;
+	var fontSize = shape && shape.fontSize ? shape.fontSize : this.style.fontSize;
+	var note = shape && shape.type === "sticky" ? shape.fill : this.style.noteColor;
+	var fill = shape ? shape.fill : this.style.fill;
+	for (var tool in refs.tools) {
+		$tw.utils.toggleClass(refs.tools[tool], "pb-active", tool === this.tool);
+	}
+	refs.swatches.forEach(function(b) {
+		$tw.utils.toggleClass(b, "pb-active", b.getAttribute("data-color") === stroke);
+	});
+	refs.notes.forEach(function(b) {
+		$tw.utils.toggleClass(b, "pb-active", b.getAttribute("data-color") === note);
+	});
+	[["width", width], ["fontSize", fontSize]].forEach(function(pair) {
+		var ref = refs[pair[0]];
+		if (ref && self.document.activeElement !== ref.input) {
+			ref.input.value = String(Math.round(pair[1]));
+			ref.value.textContent = String(Math.round(pair[1]));
+		}
+	});
+	if (refs.fill) {
+		$tw.utils.toggleClass(refs.fill, "pb-textbtn-primary", !!fill && fill !== "none");
+	}
+};
+
 /*** Fullscreen ***/
 
+/*
+The whole page goes fullscreen and the board covers it, instead of the
+board element alone: TiddlyWiki opens its own dialogs (choosing a
+tiddler, linking cards) on the page, and they must stay visible.
+*/
 methods.toggleFullscreen = function() {
 	var doc = this.document;
 	try {
-		if (doc.fullscreenElement) {
-			var exit = doc.exitFullscreen && doc.exitFullscreen();
+		if (this.fullscreen || doc.fullscreenElement) {
+			this.fullscreen = false;
+			var exit = doc.fullscreenElement && doc.exitFullscreen && doc.exitFullscreen();
 			exit && exit.catch && exit.catch(function() {});
-		} else if (this.root.requestFullscreen) {
-			var enter = this.root.requestFullscreen();
+			this.applyFullscreen();
+		} else {
+			this.fullscreen = true;
+			var html = doc.documentElement;
+			var enter = html.requestFullscreen && html.requestFullscreen();
+			var self = this;
+			// Without fullscreen permission (e.g. in a frame) the board still
+			// fills the window.
 			enter && enter.catch && enter.catch(function() {});
+			this.applyFullscreen();
 		}
 	} catch (e) {}
+	this.root.focus({preventScroll: true});
+};
+
+methods.applyFullscreen = function() {
+	$tw.utils.toggleClass(this.root, "pb-fullscreen", !!this.fullscreen);
+	$tw.utils.toggleClass(this.fullscreenButton, "pb-active", !!this.fullscreen);
+	this.scheduleRender();
+};
+
+/*
+Where overlays (viewer, lightbox) go: the fullscreen element when the
+board itself is fullscreen (presenting), otherwise the page.
+*/
+methods.overlayHost = function() {
+	var doc = this.document;
+	var fs = doc.fullscreenElement;
+	return fs && fs !== doc.documentElement ? fs : doc.body;
 };
 
 /*** Navigation popups: Lupe and background ***/
@@ -252,9 +424,143 @@ methods.renderPopup = function() {
 				onclick: function() { self.zoomBy(1 / self.camera.s); self.rememberView(); }}),
 			hideMedia
 		]));
+		// Filter bar: hides what does not match, like mod_pinnwand.
+		var filter = Dom.el(doc, "input", {type: "search", "class": "pb-input pb-filter-input",
+			placeholder: "Filter: words, or a [filter[expression]]", value: this.filterText || ""});
+		var count = Dom.el(doc, "span", {"class": "pb-filter-count"});
+		filter.addEventListener("input", function() {
+			self.setFilter(filter.value);
+			count.textContent = self.filterSummary();
+		});
+		filter.addEventListener("keydown", function(e) {
+			if (e.key === "Enter") {
+				self.fitFiltered();
+			}
+		});
+		count.textContent = this.filterSummary();
+		popup.appendChild(Dom.el(doc, "div", {"class": "pb-popup-row"}, [
+			filter,
+			Dom.button(doc, "close", "Clear the filter", function() {
+				filter.value = "";
+				self.setFilter("");
+				count.textContent = "";
+			}, "pb-btn-small")
+		]));
+		popup.appendChild(Dom.el(doc, "div", {"class": "pb-popup-row pb-filter-foot"}, [
+			count,
+			Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "Show matches",
+				onclick: function() { self.fitFiltered(); }})
+		]));
+		setTimeout(function() { filter.focus(); }, 0);
 	} else if (this.popup === "background") {
 		this.renderBackgroundPopup(popup);
 	}
+};
+
+/*** Filter (Lupe) ***/
+
+methods.setFilter = function(text) {
+	this.filterText = (text || "").trim();
+	this.computeFilter();
+	this.applyFilter();
+	$tw.utils.toggleClass(this.lupeButton, "pb-filtering", !!this.filterText);
+};
+
+/*
+Which cards and shapes match the filter text: plain words are searched
+(all must occur) in the tiddler's fields or the shape's text; text in
+square brackets is a TiddlyWiki filter run selecting the cards.
+*/
+methods.computeFilter = function() {
+	var text = this.filterText;
+	this.filterMatch = null;
+	if (!text) {
+		return;
+	}
+	var match = {cards: Object.create(null), shapes: Object.create(null)};
+	var id;
+	if (text.charAt(0) === "[") {
+		var titles = [];
+		try {
+			titles = this.wiki.filterTiddlers(text, this.parentWidget);
+		} catch (e) {}
+		titles.forEach(function(t) { match.cards[t] = true; });
+	} else {
+		var words = text.toLowerCase().split(/\s+/);
+		var hit = function(haystack) {
+			haystack = haystack.toLowerCase();
+			return words.every(function(w) { return haystack.indexOf(w) >= 0; });
+		};
+		for (id in this.cards) {
+			var tiddler = this.wiki.getTiddler(id);
+			var hay = [id, this.nodes[id] && this.nodes[id].label || ""];
+			if (tiddler) {
+				for (var f in tiddler.fields) {
+					var v = tiddler.fields[f];
+					hay.push(Array.isArray(v) ? v.join(" ") : (v instanceof Date ? "" : String(v)));
+				}
+			}
+			if (hit(hay.join("\n"))) {
+				match.cards[id] = true;
+			}
+		}
+		this.data.shapes.forEach(function(shape) {
+			if (shape.text && hit(shape.text)) {
+				match.shapes[shape.id] = true;
+			}
+		});
+	}
+	this.filterMatch = match;
+};
+
+methods.isFilteredOut = function(kind, id) {
+	var m = this.filterMatch;
+	return !!m && !(kind === "card" ? m.cards[id] : m.shapes[id]);
+};
+
+methods.applyFilter = function() {
+	var m = this.filterMatch;
+	for (var id in this.cards) {
+		$tw.utils.toggleClass(this.cards[id].el, "pb-filtered-out", !!m && !m.cards[id]);
+	}
+	var self = this;
+	this.data.shapes.forEach(function(shape) {
+		var el = self.shapeEls && self.shapeEls[shape.id];
+		// Only shapes with text take part; drawings stay.
+		el && $tw.utils.toggleClass(el, "pb-filtered-out", !!m && !!shape.text && !m.shapes[shape.id]);
+	});
+	this.renderEdges();
+};
+
+methods.filterSummary = function() {
+	var m = this.filterMatch;
+	if (!m) {
+		return "";
+	}
+	var total = Object.keys(this.cards).length;
+	var shown = Object.keys(m.cards).filter(function(id) { return this.cards[id]; }, this).length;
+	var notes = Object.keys(m.shapes).length;
+	return shown + " of " + total + " cards" + (notes ? ", " + notes + " notes" : "");
+};
+
+methods.fitFiltered = function() {
+	var m = this.filterMatch;
+	if (!m) {
+		return;
+	}
+	var rects = [];
+	for (var id in m.cards) {
+		var r = this.cardRect(id);
+		r && rects.push(r);
+	}
+	var self = this;
+	this.data.shapes.forEach(function(shape) {
+		if (m.shapes[shape.id]) {
+			rects.push(Model.shapeBounds(shape));
+		}
+	});
+	var bounds = Model.unionRects(rects);
+	bounds && this.flyTo(bounds, 0.1);
 };
 
 methods.fitSelection = function() {
@@ -281,7 +587,11 @@ methods.boardBackground = function() {
 	return {
 		color: bg.color || this.graph.background || "",
 		pattern: bg.pattern || (this.graph.grid === false ? "none" : "dots"),
-		image: bg.image || ""
+		image: bg.image || "",
+		// "view": the picture stays put behind the board; "board": it is
+		// part of the board, centered on its origin, and moves and zooms.
+		imageMode: bg.imageMode === "board" ? "board" : "view",
+		imageScale: bg.imageScale || 100
 	};
 };
 
@@ -318,10 +628,17 @@ methods.renderBackgroundPopup = function(popup) {
 			onclick: function() { self.setBackground("pattern", p[0]); }});
 	});
 	var image = Dom.el(doc, "input", {type: "text", "class": "pb-input", placeholder: "Image tiddler or URL", value: bg.image});
-	image.addEventListener("change", function() { self.setBackground("image", image.value.trim()); });
+	image.addEventListener("change", function() {
+		var value = image.value.trim();
+		if (value !== bg.image) {
+			// Rebuild the popup after this event, not while the field is
+			// still being blurred.
+			setTimeout(function() { self.setBackground("image", value); }, 0);
+		}
+	});
 	image.addEventListener("keydown", function(e) {
 		if (e.key === "Enter") {
-			self.setBackground("image", image.value.trim());
+			image.blur();
 		}
 	});
 	popup.appendChild(Dom.el(doc, "div", {"class": "pb-popup-head"}, [Dom.el(doc, "strong", {text: "Background"})]));
@@ -330,6 +647,29 @@ methods.renderBackgroundPopup = function(popup) {
 	popup.appendChild(Dom.el(doc, "div", {"class": "pb-popup-row pb-wrap"}, patterns));
 	popup.appendChild(Dom.el(doc, "div", {"class": "pb-popup-label", text: "Picture"}));
 	popup.appendChild(image);
+	if (bg.image) {
+		var modeButton = function(mode, label, title) {
+			return Dom.el(doc, "button", {"class": "pb-textbtn" + (bg.imageMode === mode ? " pb-textbtn-primary" : ""), type: "button", text: label, title: title,
+				onclick: function() { self.setBackground("imageMode", mode === "view" ? "" : mode); }});
+		};
+		popup.appendChild(Dom.el(doc, "div", {"class": "pb-popup-row pb-wrap"}, [
+			modeButton("view", "Fixed to the view", "The picture fills the view and stays put while you move around"),
+			modeButton("board", "On the board", "The picture lies on the board and moves and zooms with it")
+		]));
+		if (bg.imageMode === "board") {
+			var scale = Dom.el(doc, "input", {type: "range", "class": "pb-size-slider", min: "5", max: "400", step: "5", value: String(bg.imageScale), title: "Picture size"});
+			var scaleValue = Dom.el(doc, "span", {"class": "pb-size-value", text: bg.imageScale + "%"});
+			scale.addEventListener("input", function() {
+				scaleValue.textContent = scale.value + "%";
+				(self.data.background = self.data.background || {}).imageScale = Number(scale.value);
+				self.backgroundKey = null;
+				self.applyBackground();
+			});
+			scale.addEventListener("change", function() { self.setBackground("imageScale", Number(scale.value)); });
+			popup.appendChild(Dom.el(doc, "label", {"class": "pb-popup-row pb-size-row"}, [
+				Dom.el(doc, "span", {"class": "pb-size-label", text: "Size"}), scale, scaleValue]));
+		}
+	}
 };
 
 /*
@@ -351,8 +691,34 @@ methods.applyBackground = function() {
 	});
 	$tw.utils.toggleClass(this.root, "pb-grid", bg.pattern !== "none");
 	var url = bg.image ? this.imageUrl(bg.image) : "";
-	this.root.style.backgroundImage = url ? "url(\"" + url.replace(/"/g, "%22") + "\")" : "";
+	var onBoard = !!url && bg.imageMode === "board";
+	this.root.style.backgroundImage = url && !onBoard ? "url(\"" + url.replace(/"/g, "%22") + "\")" : "";
 	$tw.utils.toggleClass(this.root, "pb-has-image", !!url);
+	if (onBoard) {
+		if (!this.boardImage) {
+			this.boardImage = Dom.el(this.document, "img", {"class": "pb-board-image", alt: "", draggable: "false"});
+			this.world.insertBefore(this.boardImage, this.world.firstChild);
+			this.boardImage.addEventListener("load", function() { self.placeBoardImage(); });
+		}
+		this.boardImageScale = bg.imageScale / 100;
+		if (this.boardImage.getAttribute("src") !== url) {
+			this.boardImage.setAttribute("src", url);
+		}
+		this.placeBoardImage();
+	} else if (this.boardImage) {
+		Dom.remove(this.boardImage);
+		this.boardImage = null;
+	}
+};
+
+methods.placeBoardImage = function() {
+	var img = this.boardImage;
+	if (img && img.naturalWidth) {
+		var w = img.naturalWidth * this.boardImageScale, h = img.naturalHeight * this.boardImageScale;
+		img.style.width = w + "px";
+		img.style.left = (-w / 2) + "px";
+		img.style.top = (-h / 2) + "px";
+	}
 };
 
 /*
@@ -403,7 +769,7 @@ methods.renderContextBar = function() {
 		} else {
 			buttons.push(Dom.button(doc, "back", "Send behind cards", function() { self.setShapeLayer("back"); }));
 		}
-		buttons.push(Dom.button(doc, "target", "Add to presentation path", function() {
+		buttons.push(Dom.button(doc, "addstep", "Add to presentation path", function() {
 			self.addStep({kind: shape.type === "frame" ? "frame" : "shape", ref: shape.id});
 		}));
 		if (shape.type !== "frame") {
@@ -710,8 +1076,9 @@ methods.renderSteps = function() {
 					var v = Model.viewRect(self.camera, size.w, size.h);
 					self.addStep({kind: "view", x: Math.round(v.x), y: Math.round(v.y), w: Math.round(v.w), h: Math.round(v.h)});
 				}}),
-			Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "+ Frame",
-				onclick: function() { self.setTool("frame"); }})
+			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon" + (self.tool === "frame" ? " pb-textbtn-primary" : ""), type: "button",
+				title: "Presentation frame (F): drag a rectangle; each frame becomes a stop",
+				onclick: function() { self.setTool(self.tool === "frame" ? "select" : "frame"); }}, [Dom.icon(doc, "frame"), "Frame"])
 		]));
 	}
 	if (steps.length > 0) {
@@ -746,7 +1113,7 @@ function tint(color) {
 methods.openModal = function(title) {
 	var doc = this.document, self = this;
 	this.closeModal();
-	var host = doc.fullscreenElement || doc.body;
+	var host = this.overlayHost();
 	var modal = {title: title, editing: false};
 	modal.content = Dom.el(doc, "div", {"class": "pb-modal-content"});
 	modal.editButton = Dom.el(doc, "button", {"class": "pb-modal-btn", type: "button", title: "Edit this tiddler",
@@ -990,7 +1357,7 @@ methods.turnIntoTiddler = function(shape) {
 methods.openLightbox = function(src, alt) {
 	var doc = this.document, self = this;
 	this.closeLightbox();
-	var host = doc.fullscreenElement || doc.body;
+	var host = this.overlayHost();
 	var img = Dom.el(doc, "img", {src: src, alt: alt || "", draggable: "false"});
 	var stage = Dom.el(doc, "div", {"class": "pb-lightbox-stage"}, [img]);
 	var zoomLabel = Dom.el(doc, "span", {"class": "pb-lightbox-zoom"});

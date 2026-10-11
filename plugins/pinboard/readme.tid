@@ -14,13 +14,18 @@ Pick the template ''Pinboard (infinite canvas & presentation)'' in a graph's set
 </$graph>
 ```
 
-The `store` property names the tiddler that keeps the board's drawings, card sizes, chosen fields and presentation path (in its `pinboard` field). Without it, drawings only last until the board is re-rendered.
+The `store` property names the tiddler that keeps the board's drawings, card sizes, chosen fields, background and presentation path (in its `pinboard` field). With the Pinboard template, that is the graph tiddler itself, which then holds everything about the board: the list of cards (`filter`), their positions (its text), and the `pinboard` field. Only the cards' content lives in their own tiddlers. Without a store, drawings only last until the board is re-rendered.
 
 !! Menus
 
-* ''Drawing dock'' (left): pen, highlighter, eraser, shapes, text, sticky note, new tiddler card, colors, stroke width, fill, undo/redo. Click the active tool again to go back to selecting.
-* ''Navigation'' (bottom right): select, pan, the ''Lupe'' (zoom slider, show everything, show the selection, 100%, hide images), ''background'' (color, pattern: none/dots/grid/lines, picture from a tiddler or URL) and ''fullscreen''.
-* ''Presentation'' (top right): ▶ present, frame tool, presentation path, layers.
+* ''Drawing dock'' (left, one narrow column). Each group opens a flyout to the side with its tools, colors and a size slider:
+** ''Draw'': pencil, brush, Bezier curve (click points, double-click to finish)
+** ''Shapes'': circle/ellipse, rectangle, polygon (click corners, double-click or click the first corner to close), line, arrow; fill on/off
+** ''Text'': text with font size
+** ''Sticky note'': note colors
+** then eraser, new tiddler card, undo/redo. Click the active tool again to go back to selecting.
+* ''Navigation'' (bottom center): select, pan, the ''Lupe'' (zoom slider, show everything, show the selection, 100%, hide images, and a ''filter'': words hide every card and note that does not contain them all, a `[filter[expression]]` keeps just the cards it selects; Enter or "Show matches" flies there), ''background'' (color; pattern none/dots/grid/lines; picture from a tiddler or URL, either fixed to the view or lying on the board with its own size) and ''fullscreen'' (the board fills the screen; TiddlyWiki's dialogs still open on top).
+* ''Presentation'' (top right): ▶ present, presentation path (with the frame tool), layers.
 
 !! Cards
 
@@ -43,6 +48,8 @@ The `store` property names the tiddler that keeps the board's drawings, card siz
 |L / A |Line / arrow (Shift: 45° steps) |
 |T |Text |
 |N |Sticky note |
+|B |Bezier curve (Enter or Esc finishes) |
+|G |Polygon |
 |F |Presentation frame |
 |C |Add a tiddler card |
 
@@ -52,7 +59,7 @@ Selected shapes can be recolored, resized, rotated, moved with the arrow keys, s
 
 !! Presenting
 
-Frames join the presentation path automatically. Cards, shapes and the current view can be added from their tools (target icon) or the path panel (list icon, top right), where stops are reordered by dragging their grip. ▶ starts the presentation: fullscreen, camera flights between stops.
+Frames join the presentation path automatically. Cards, shapes and the current view can be added from their tools (play button in a circle) or the path panel (list icon, top right), where stops are reordered by dragging their grip. ▶ starts the presentation: fullscreen, camera flights between stops.
 
 * ''Tilted stops'': rotate a frame (or any box shape) with the round handle above it (Shift: 15° steps). The camera turns with it on arrival.
 * ''Appear / disappear'': the eye icon on a shape or card picks the stop at which it appears and the stop at which it disappears.

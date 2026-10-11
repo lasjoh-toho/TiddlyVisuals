@@ -41,6 +41,9 @@ methods.renderShapes = function() {
 		(shape.layer === "back" ? this.backLayer : this.frontLayer).appendChild(el);
 	}
 	this.renderSelection();
+	if (this.filterMatch) {
+		this.applyFilter();
+	}
 };
 
 methods.updateShapeEl = function(shape) {
@@ -69,6 +72,13 @@ methods.buildShape = function(shape) {
 		if (shape.type === "highlighter") {
 			visual.setAttribute("stroke-opacity", "0.38");
 		}
+		break;
+	case "curve":
+	case "polygon":
+		var pathD = shape.type === "curve" ? Model.curvePath(shape.points, false) : Model.polygonPath(shape.points);
+		hit = svg("path", {d: pathD});
+		visual = svg("path", {d: pathD, fill: shape.type === "polygon" ? fill : "none", stroke: stroke, "stroke-width": width,
+			"stroke-linecap": "round", "stroke-linejoin": "round"});
 		break;
 	case "line":
 	case "arrow":
@@ -236,6 +246,9 @@ methods.setTool = function(tool) {
 	if (!this.isEditable()) {
 		tool = "select";
 	}
+	if (this.pathDraft && tool !== this.tool) {
+		this.finishPath();
+	}
 	this.tool = tool;
 	this.root.setAttribute("data-pb-tool", tool);
 	if (tool !== "select") {
@@ -253,8 +266,12 @@ methods.newShapeStyle = function(type) {
 		break;
 	case "rect":
 	case "ellipse":
+	case "polygon":
 		shape.fill = style.fill;
 		shape.layer = "back";
+		break;
+	case "text":
+		shape.fontSize = style.fontSize;
 		break;
 	case "frame":
 		shape.stroke = FRAME_COLOR;
@@ -262,7 +279,7 @@ methods.newShapeStyle = function(type) {
 		shape.layer = "back";
 		break;
 	case "sticky":
-		shape.fill = (style.fill && style.fill !== "none") ? style.fill : STICKY_FILL;
+		shape.fill = style.noteColor || STICKY_FILL;
 		break;
 	}
 	return shape;
@@ -363,6 +380,74 @@ methods.startDrawGesture = function(start, tool) {
 	};
 };
 
+/*** Bezier and polygon: one click per point ***/
+
+/*
+Each click adds a point; the last segment follows the pointer. A
+double-click, Enter, or (polygon) a click on the first point finishes;
+Esc finishes too, dropping the shape if it has too few points.
+*/
+methods.addPathPoint = function(tool, world) {
+	var p = [Model.round(world.x), Model.round(world.y)];
+	var draft = this.pathDraft;
+	if (draft && draft.shape.type !== tool) {
+		this.finishPath();
+		draft = null;
+	}
+	if (!draft) {
+		var shape = this.newShapeStyle(tool);
+		shape.points = [p, p.slice()];
+		this.checkpoint();
+		this.data.shapes.push(shape);
+		this.pathDraft = {shape: shape};
+		this.renderShapes();
+		return;
+	}
+	var points = draft.shape.points;
+	var first = points[0];
+	var tolerance = 8 / this.camera.s;
+	if (tool === "polygon" && points.length > 3 && Math.hypot(p[0] - first[0], p[1] - first[1]) < tolerance) {
+		// Clicked the first corner: close (finishPath drops the preview point).
+		this.finishPath();
+		return;
+	}
+	var fixed = points[points.length - 2];
+	if (Math.hypot(p[0] - fixed[0], p[1] - fixed[1]) < tolerance) {
+		// Second click of a double-click: nothing new to add.
+		return;
+	}
+	points[points.length - 1] = p;
+	points.push(p.slice());
+	this.updateShapeEl(draft.shape);
+};
+
+methods.movePathPreview = function(world) {
+	var draft = this.pathDraft;
+	if (draft) {
+		var points = draft.shape.points;
+		points[points.length - 1] = [Model.round(world.x), Model.round(world.y)];
+		this.updateShapeEl(draft.shape);
+	}
+};
+
+methods.finishPath = function() {
+	var draft = this.pathDraft;
+	if (!draft) {
+		return;
+	}
+	this.pathDraft = null;
+	var shape = draft.shape;
+	// Drop the point that was following the pointer.
+	shape.points.pop();
+	var needed = shape.type === "polygon" ? 3 : 2;
+	if (shape.points.length < needed) {
+		this.discardShape(shape);
+		return;
+	}
+	this.selection = {type: "shape", id: shape.id};
+	this.commit();
+};
+
 methods.discardShape = function(shape) {
 	// The checkpoint taken when it was added would now undo nothing.
 	this.undoStack.pop();
@@ -377,7 +462,7 @@ methods.placeTextShape = function(tool, world) {
 		shape.x = Model.round(world.x - 90); shape.y = Model.round(world.y - 90);
 		shape.w = 180; shape.h = 180;
 	} else {
-		var fontSize = Math.round(24 / Math.max(0.25, Math.min(4, this.camera.s)));
+		var fontSize = Math.round((this.style.fontSize || 24) / Math.max(0.25, Math.min(4, this.camera.s)));
 		shape.fontSize = fontSize;
 		shape.x = Model.round(world.x); shape.y = Model.round(world.y - fontSize * 0.75);
 		shape.w = Math.round(fontSize * 12); shape.h = Math.round(fontSize * 2);
@@ -633,22 +718,54 @@ methods.selectedShape = function() {
 	return (sel && sel.type === "shape") ? Model.findShape(this.data, sel.id) : null;
 };
 
-methods.applyStyle = function(key, value) {
+/*
+Sets a drawing style for new shapes and, if a shape is selected, applies
+it to that shape where it makes sense. `live` is used while a slider is
+dragged: one undo step, saved by commitStyle() when the drag ends.
+*/
+methods.applyStyle = function(key, value, live) {
 	this.style[key] = value;
 	var shape = this.selectedShape();
-	if (shape && this.isEditable()) {
-		this.checkpoint();
-		if (key === "width" && shape.type === "highlighter") {
-			value = value * 5;
-		}
-		if (key === "fill" && (shape.type === "pen" || shape.type === "highlighter" || shape.type === "line" || shape.type === "arrow" || shape.type === "frame")) {
-			// Strokes have no fill.
-		} else {
-			shape[key] = value;
-		}
-		this.commit();
-	} else {
+	if (!shape || !this.isEditable()) {
 		this.updateUi();
+		return;
+	}
+	var type = shape.type;
+	var target = null, v = value;
+	if (key === "noteColor") {
+		target = type === "sticky" ? "fill" : null;
+	} else if (key === "fontSize") {
+		target = Model.hasText(type) && type !== "frame" ? "fontSize" : null;
+	} else if (key === "fill") {
+		target = (type === "rect" || type === "ellipse" || type === "polygon") ? "fill" : null;
+	} else if (key === "width") {
+		target = (type === "text" || type === "sticky") ? null : "width";
+		v = type === "highlighter" ? value * 5 : value;
+	} else if (key === "stroke") {
+		target = type === "sticky" ? null : "stroke";
+	}
+	if (!target) {
+		this.updateUi();
+		return;
+	}
+	if (!live || !this.liveStyle) {
+		this.checkpoint();
+	}
+	shape[target] = v;
+	if (live) {
+		this.liveStyle = true;
+		this.updateShapeEl(shape);
+		this.renderSelection();
+	} else {
+		this.liveStyle = false;
+		this.commit();
+	}
+};
+
+methods.commitStyle = function() {
+	if (this.liveStyle) {
+		this.liveStyle = false;
+		this.commit();
 	}
 };
 

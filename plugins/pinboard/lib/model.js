@@ -22,7 +22,7 @@ The pinboard document is stored as JSON in a field of the store tiddler:
 "use strict";
 
 var BOX_TYPES = {rect: true, ellipse: true, text: true, sticky: true, frame: true};
-var POINT_TYPES = {pen: true, highlighter: true, line: true, arrow: true};
+var POINT_TYPES = {pen: true, highlighter: true, line: true, arrow: true, curve: true, polygon: true};
 var STEP_KINDS = {frame: true, card: true, shape: true, view: true};
 var TEXT_MODES = {full: true, "break": true, image: true, imagebreak: true};
 
@@ -128,6 +128,13 @@ exports.normalizeDoc = function(doc) {
 		});
 		if (bg.pattern && ["none", "dots", "grid", "lines"].indexOf(bg.pattern) < 0) {
 			delete bg.pattern;
+		}
+		if (doc.background.imageMode === "board") {
+			bg.imageMode = "board";
+		}
+		var imageScale = num(doc.background.imageScale, 0);
+		if (imageScale > 0) {
+			bg.imageScale = Math.min(1000, imageScale);
 		}
 		if (Object.keys(bg).length) {
 			out.background = bg;
@@ -450,6 +457,36 @@ exports.smoothPath = function(points) {
 	}
 	var last = points[points.length - 1];
 	return d + "L" + last[0] + " " + last[1];
+};
+
+/*
+Smooth curve through every point (Catmull-Rom turned into cubic Bezier
+segments), optionally closed. Used by the Bezier and polygon tools.
+*/
+exports.curvePath = function(points, closed) {
+	var n = points.length;
+	if (n < 3) {
+		return exports.smoothPath(points) + (closed ? "Z" : "");
+	}
+	var at = function(i) {
+		if (closed) {
+			return points[(i + n) % n];
+		}
+		return points[Math.max(0, Math.min(n - 1, i))];
+	};
+	var d = "M" + points[0][0] + " " + points[0][1];
+	var last = closed ? n : n - 1;
+	for (var i = 0; i < last; i++) {
+		var p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+		d += "C" + round(p1[0] + (p2[0] - p0[0]) / 6) + " " + round(p1[1] + (p2[1] - p0[1]) / 6) +
+			" " + round(p2[0] - (p3[0] - p1[0]) / 6) + " " + round(p2[1] - (p3[1] - p1[1]) / 6) +
+			" " + p2[0] + " " + p2[1];
+	}
+	return d + (closed ? "Z" : "");
+};
+
+exports.polygonPath = function(points) {
+	return points.map(function(p, i) { return (i ? "L" : "M") + p[0] + " " + p[1]; }).join("") + "Z";
 };
 
 /*
