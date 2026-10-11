@@ -157,7 +157,7 @@ methods.createCard = function(id) {
 	card.linkBtn = Dom.button(doc, "link", "Link to another card (then click the other card)", function() {
 		self.startLinking(id);
 	});
-	card.stepBtn = Dom.button(doc, "target", "Add to presentation path", function() {
+	card.stepBtn = Dom.button(doc, "addstep", "Add to presentation path", function() {
 		self.addStep({kind: "card", ref: id});
 	});
 	card.effectsBtn = Dom.button(doc, "eye", "Appear / disappear during the presentation", function() {

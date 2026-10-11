@@ -124,7 +124,7 @@ exports.init = function(element, objects, options) {
 	this.cards = Object.create(null);
 	this.camera = {x: 0, y: 0, s: 1, r: 0};
 	this.tool = "select";
-	this.style = {stroke: "#1f2937", fill: "none", width: 3};
+	this.style = {stroke: "#1f2937", fill: "none", width: 3, fontSize: 24, noteColor: "#fde68a"};
 	this.selection = null;
 	this.undoStack = [];
 	this.redoStack = [];
@@ -161,6 +161,7 @@ exports.destroy = function() {
 		this.window.cancelAnimationFrame(this.cameraAnimation);
 	}
 	this.window.removeEventListener("resize", this.onResize);
+	this.resizeObserver && this.resizeObserver.disconnect();
 	this.document.removeEventListener("fullscreenchange", this.onFullscreenChange);
 	Dom.remove(this.root);
 };
@@ -214,8 +215,26 @@ exports.buildDom = function() {
 			this.fire("graph", null, "blur", event);
 		}
 	});
-	this.onResize = function() { self.scheduleRender(); };
+	// When the board changes size (fullscreen, window, sidebar), keep the
+	// point in the middle of the view in the middle.
+	this.onResize = function() {
+		var size = self.viewSize();
+		var last = self.lastSize;
+		self.lastSize = size;
+		if (last && (last.w !== size.w || last.h !== size.h) && !self.presenting) {
+			self.setCamera({
+				x: self.camera.x + (size.w - last.w) / 2,
+				y: self.camera.y + (size.h - last.h) / 2,
+				s: self.camera.s, r: self.camera.r
+			});
+		}
+		self.scheduleRender();
+	};
 	this.window.addEventListener("resize", this.onResize);
+	if (this.window.ResizeObserver) {
+		this.resizeObserver = new this.window.ResizeObserver(this.onResize);
+		this.resizeObserver.observe(this.viewport);
+	}
 };
 
 /*** Applying graph objects ***/
@@ -413,6 +432,10 @@ exports.handleWikiChange = function(changes) {
 		}
 	}
 	this.refreshCards(changes);
+	if (this.filterText) {
+		this.computeFilter();
+		this.applyFilter();
+	}
 	this.refreshModal && this.refreshModal(changes);
 	this.scheduleRender();
 };
@@ -596,6 +619,12 @@ exports.scheduleRender = function() {
 
 exports.renderNow = function() {
 	this.layoutCards();
+	if (this.filterMatch && this.filterCardsCount !== Object.keys(this.cards).length) {
+		// Cards were added or removed while filtering.
+		this.filterCardsCount = Object.keys(this.cards).length;
+		this.computeFilter();
+		this.applyFilter();
+	}
 	this.renderEdges();
 	this.renderSelection();
 };
@@ -632,6 +661,8 @@ exports.handlePointerDown = function(event) {
 	if (Dom.closest(target, ".pb-chrome", this.root)) {
 		return;
 	}
+	// Working on the board closes the dock's flyout.
+	this.closeFlyout && this.closeFlyout();
 	if (!Dom.closest(target, "input, textarea, [contenteditable='true']", this.root)) {
 		this.root.focus({preventScroll: true});
 	}
@@ -703,6 +734,9 @@ exports.startToolGesture = function(start, target, interactive) {
 	case "text":
 	case "sticky":
 		return {kind: "place", tool: tool, start: start, capture: true};
+	case "curve":
+	case "polygon":
+		return {kind: "path-point", tool: tool, start: start, capture: true};
 	case "eraser":
 		return this.startEraseGesture(start);
 	case "card":
@@ -738,6 +772,9 @@ exports.handlePointerMove = function(event) {
 	}
 	var g = this.gesture;
 	if (!g) {
+		if (this.pathDraft) {
+			this.movePathPreview(this.toWorld(event.clientX, event.clientY));
+		}
 		return;
 	}
 	if (g.kind === "pinch") {
@@ -816,6 +853,9 @@ exports.handlePointerUp = function(event) {
 		break;
 	case "place":
 		this.placeTextShape(g.tool, world);
+		break;
+	case "path-point":
+		this.addPathPoint(g.tool, world);
 		break;
 	case "addnode":
 		if (this.can("graph", null, "addNode")) {
@@ -903,6 +943,10 @@ exports.canScrollInside = function(node, deltaY) {
 
 exports.handleDoubleClick = function(event) {
 	if (this.modal || this.presenting) {
+		return;
+	}
+	if (this.pathDraft) {
+		this.finishPath();
 		return;
 	}
 	var target = event.target;
@@ -1009,7 +1053,7 @@ exports.setHovered = function(key, event) {
 
 /*** Keyboard ***/
 
-var TOOL_KEYS = {v: "select", h: "hand", p: "pen", m: "highlighter", r: "rect", o: "ellipse", l: "line", a: "arrow", t: "text", n: "sticky", f: "frame", e: "eraser", c: "card"};
+var TOOL_KEYS = {v: "select", h: "hand", p: "pen", m: "highlighter", b: "curve", r: "rect", o: "ellipse", g: "polygon", l: "line", a: "arrow", t: "text", n: "sticky", f: "frame", e: "eraser", c: "card"};
 
 exports.handleKeyDown = function(event) {
 	if (this.modal) {
@@ -1044,6 +1088,8 @@ exports.handleKeyDown = function(event) {
 		handled = false;
 	} else if (key === "Delete" || key === "Backspace") {
 		this.deleteSelection();
+	} else if (this.pathDraft && (key === "Enter" || key === "Escape")) {
+		this.finishPath();
 	} else if (key === "Escape") {
 		this.stopLinking();
 		this.select(null);

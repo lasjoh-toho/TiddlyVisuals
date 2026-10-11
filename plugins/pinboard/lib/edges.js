@@ -27,6 +27,9 @@ methods.renderEdges = function() {
 		if (edge.hidden || !edge.from || !edge.to) {
 			continue;
 		}
+		if (this.filterMatch && (this.isFilteredOut("card", edge.from) || this.isFilteredOut("card", edge.to))) {
+			continue;
+		}
 		var key = edge.from < edge.to ? edge.from + "\n" + edge.to : edge.to + "\n" + edge.from;
 		(groups[key] = groups[key] || []).push(id);
 	}

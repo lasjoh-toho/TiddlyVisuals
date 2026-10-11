@@ -64,7 +64,7 @@ type: text/vnd.tiddlywiki
 .pb-root.pb-grid.pb-pattern-lines .pb-viewport {
 	background-image: linear-gradient(to bottom, var(--pb-pattern) 1px, transparent 1px);
 }
-.pb-root:fullscreen { background-color: var(--pb-bg); }
+.pb-root:fullscreen, .pb-root.pb-has-bg.pb-fullscreen { background-color: var(--pb-bg); }
 
 /* Hide media (Lupe menu) */
 .pb-root.pb-hide-media .pb-card-body img,
@@ -84,6 +84,8 @@ type: text/vnd.tiddlywiki
 .pb-root[data-pb-tool="line"] .pb-viewport,
 .pb-root[data-pb-tool="arrow"] .pb-viewport,
 .pb-root[data-pb-tool="frame"] .pb-viewport,
+.pb-root[data-pb-tool="curve"] .pb-viewport,
+.pb-root[data-pb-tool="polygon"] .pb-viewport,
 .pb-root[data-pb-tool="card"] .pb-viewport { cursor: crosshair; }
 .pb-root[data-pb-tool="text"] .pb-viewport,
 .pb-root[data-pb-tool="sticky"] .pb-viewport { cursor: text; }
@@ -96,7 +98,9 @@ type: text/vnd.tiddlywiki
 .pb-root[data-pb-tool="ellipse"] .pb-card *,
 .pb-root[data-pb-tool="line"] .pb-card *,
 .pb-root[data-pb-tool="arrow"] .pb-card *,
-.pb-root[data-pb-tool="frame"] .pb-card * { pointer-events: none; }
+.pb-root[data-pb-tool="frame"] .pb-card *,
+.pb-root[data-pb-tool="curve"] .pb-card *,
+.pb-root[data-pb-tool="polygon"] .pb-card * { pointer-events: none; }
 
 .pb-world {
 	position: absolute;
@@ -426,8 +430,8 @@ type: text/vnd.tiddlywiki
 	transform: translateY(-50%);
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	padding: 6px;
+	gap: 2px;
+	padding: 4px;
 	max-height: calc(100% - 20px);
 	overflow-y: auto;
 	scrollbar-width: none;
@@ -441,6 +445,52 @@ type: text/vnd.tiddlywiki
 	border-bottom: 1px solid var(--pb-border);
 }
 .pb-group:last-child { border-bottom: none; padding-bottom: 0; }
+
+.pb-dock-sep {
+	height: 1px;
+	margin: 3px 4px;
+	background: var(--pb-border);
+}
+.pb-btn.pb-has-flyout { position: relative; }
+.pb-btn.pb-has-flyout::after {
+	content: "";
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+	border: 3px solid transparent;
+	border-right-color: currentColor;
+	border-bottom-color: currentColor;
+	opacity: .55;
+}
+
+/* Flyout to the right of the dock */
+.pb-flyout {
+	display: none;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px;
+	min-width: 190px;
+	background: color-mix(in srgb, var(--pb-panel) 92%, transparent);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	border: 1px solid var(--pb-border);
+	border-radius: 12px;
+	box-shadow: 0 6px 22px rgba(0,0,0,.14);
+}
+.pb-flyout.pb-open { display: flex; }
+.pb-flyout-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+.pb-flyout .pb-colors { gap: 6px; padding: 0 2px; }
+.pb-size-row { gap: 8px; flex-wrap: nowrap; font-size: 12px; color: var(--pb-muted); }
+.pb-size-slider { flex: 1; min-width: 110px; }
+.pb-size-value { min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; color: var(--pb-fg); }
+.pb-swatch-note { border-radius: 4px; }
+.pb-textbtn-icon { display: inline-flex; align-items: center; gap: 4px; }
+.pb-textbtn-icon .pb-icon { width: 15px; height: 15px; }
 
 .pb-colors {
 	grid-template-columns: repeat(4, 1fr);
@@ -537,8 +587,9 @@ type: text/vnd.tiddlywiki
 }
 
 .pb-zoombar {
-	right: 10px;
+	left: 50%;
 	bottom: 10px;
+	transform: translateX(-50%);
 	display: flex;
 	align-items: center;
 	gap: 2px;
@@ -554,9 +605,10 @@ type: text/vnd.tiddlywiki
 }
 
 .pb-nav-popup {
-	right: 10px;
+	left: 50%;
 	bottom: 60px;
-	width: 270px;
+	transform: translateX(-50%);
+	width: 300px;
 	display: none;
 	gap: 6px;
 }
@@ -797,6 +849,36 @@ type: text/vnd.tiddlywiki
 .pb-root.pb-readonly .pb-toolbar { display: none; }
 
 /*** Presentation ***/
+
+/* Picture on the board (background "on the board") */
+.pb-root img.pb-board-image {
+	position: absolute;
+	max-width: none;
+	pointer-events: none;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+/* Filter (Lupe) */
+.pb-filtered-out { display: none !important; }
+.pb-filter-input { flex: 1; min-width: 0; }
+.pb-filter-foot { justify-content: space-between; font-size: 12px; color: var(--pb-muted); }
+.pb-btn.pb-filtering { box-shadow: inset 0 0 0 2px var(--pb-accent); }
+
+/* TiddlyWiki's top bar (sidebar toggle) would show through the
+   fullscreen board. */
+html:has(.pb-root.pb-fullscreen) .tc-topbar { display: none; }
+
+/* Board fullscreen: the page is fullscreen and the board covers it, below
+   TiddlyWiki's own dialogs (z-index 900+). */
+.pb-root.pb-fullscreen {
+	position: fixed;
+	inset: 0;
+	z-index: 850;
+	width: 100vw;
+	height: 100vh;
+	background-color: var(--pb-bg);
+}
 
 .pb-root.pb-presenting {
 	position: fixed;

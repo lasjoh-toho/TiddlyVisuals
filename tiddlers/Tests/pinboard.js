@@ -174,6 +174,28 @@ it("keeps text modes, hidden shapes and the background", function() {
 	expect(Model.parseDoc(Model.serializeDoc(doc)).background).toEqual(doc.background);
 });
 
+it("draws Bezier curves through their points and closes polygons", function() {
+	var pts = [[0, 0], [10, 10], [20, 0]];
+	var d = Model.curvePath(pts, false);
+	expect(d.indexOf("M0 0")).toBe(0);
+	// Passes through every clicked point.
+	expect(d).toContain(" 10 10C");
+	expect(d.slice(-5)).toBe(" 20 0");
+	expect(Model.curvePath(pts, true).slice(-1)).toBe("Z");
+	expect(Model.polygonPath(pts)).toBe("M0 0L10 10L20 0Z");
+	var doc = Model.parseDoc(JSON.stringify({shapes: [
+		{id: "c", type: "curve", points: pts}, {id: "p", type: "polygon", points: pts, fill: "#eee"}]}));
+	expect(doc.shapes.map(function(s) { return s.type; })).toEqual(["curve", "polygon"]);
+	expect(Model.shapeBounds(doc.shapes[1])).toEqual({x: -1, y: -1, w: 22, h: 12});
+});
+
+it("keeps the background picture mode and size", function() {
+	var bg = Model.parseDoc(JSON.stringify({background: {image: "Pic", imageMode: "board", imageScale: 250}})).background;
+	expect(bg).toEqual({image: "Pic", imageMode: "board", imageScale: 250});
+	bg = Model.parseDoc(JSON.stringify({background: {image: "Pic", imageMode: "weird", imageScale: -3}})).background;
+	expect(bg).toEqual({image: "Pic"});
+});
+
 it("smooths and simplifies strokes", function() {
 	expect(Model.smoothPath([[0, 0], [10, 0]])).toBe("M0 0L10 0");
 	expect(Model.smoothPath([[0, 0], [10, 0], [20, 10]])).toBe("M0 0Q10 0 15 5L20 10");
