@@ -25,6 +25,11 @@
 				"$:/plugins/lasjoh-toho/pinboard",
 				"pinboard.json",
 				"text/plain",
+				"$:/core/templates/html-json-tiddler",
+			"--render",
+				"$:/plugins/lasjoh-toho/kanban",
+				"kanban.json",
+				"text/plain",
 				"$:/core/templates/html-json-tiddler"
 		],
 		"index": [

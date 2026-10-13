@@ -1,0 +1,31 @@
+caption: Kanban (columns & swimlanes)
+title: $:/plugins/lasjoh-toho/kanban/templates/kanban
+tags: $:/tags/flibbles/graph/Template
+list-after: $:/plugins/lasjoh-toho/pinboard/templates/pinboard
+
+\whitespace trim
+
+<$graph $engine="Kanban" store=<<currentTiddler>> >
+
+<%if [{!!filter}is[blank]] %>
+
+<$node $tiddler="$:/plugins/flibbles/graph/settings"
+  label="Click on me to configure this graph"
+  actions="\import $:/plugins/flibbles/graph/ui/Buttons/settings
+<<settingsActions>>" />
+
+<%endif%>
+
+<$properties.settings>
+
+<$slot $name=ts-raw $depth=5 />
+
+<$nodes.writable $field=filter>
+
+<$node.default/>
+
+<$edges.typed $editable=yes />
+
+</$nodes.writable>
+</$properties.settings>
+</$graph>

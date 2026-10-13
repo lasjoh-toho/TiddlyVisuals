@@ -1,0 +1,46 @@
+title: $:/plugins/lasjoh-toho/kanban/readme
+
+The ''Kanban'' engine turns a [[TW5-Graph|$:/plugins/flibbles/graph]] graph into a Kanban board: nodes become cards, sorted into columns and, if you like, swimlanes by fields of their tiddlers. Edges are drawn as arrows between the cards, so you can show which task blocks which.
+
+!! Getting started
+
+Pick the template ''Kanban (columns & swimlanes)'' in a graph's settings, or write the graph yourself:
+
+```
+<$graph $engine="Kanban" columns="[[To do]] Doing Done" laneField="owner">
+  <$list filter="[tag[Task]]">
+    <$node.default />
+  </$list>
+</$graph>
+```
+
+!! Where things are kept
+
+* ''A card's column and swimlane'' are values of fields of the card's own tiddler: `status` by default (graph property `columnField`), and for swimlanes the field named in `laneField`. Moving a card rewrites those fields, so lists, filters and other boards see the same status. With `columnField` set to `tags`, a card sits in the first column whose value is one of its tags, and moving it swaps that tag.
+* ''The columns and swimlanes'' (`columns`, `lanes`) are graph properties, title lists in order. Left blank, the board shows every value its cards have. Cards whose value is missing or not in the list gather in a column (or swimlane) in front, named after the field.
+* ''The order of the cards'' is a title list in the `kanban` field of the `store` tiddler. With the Kanban template, that is the graph tiddler itself, which then holds everything about the board; only the cards' content and their fields live in their own tiddlers.
+
+!! On the board
+
+* Drag a card to move it within a column or to another column or swimlane. Click it to open the tiddler (unless the graph gives nodes their own `actions`).
+* ''+'' at the bottom of a cell adds a tiddler there: type a title; a missing tiddler is created with that cell's values. You can also drag a tiddler link from the story river onto a cell.
+* With a store tiddler, column and swimlane headers can be edited in place: ''+ Column'', ''+ Swimlane'', rename (✎ or double-click), move (◂ ▸), remove (×). Renaming a column also renames the value on its cards; removing one leaves the cards' fields alone.
+* Ctrl + mouse wheel zooms the board.
+
+!! Properties
+
+|!Graph |!|
+|`columnField` |Field that decides the column (default `status`) |
+|`columns` |Columns in order |
+|`laneField` |Field that decides the swimlane (blank: no swimlanes) |
+|`lanes` |Swimlanes in order |
+|`fields` |Fields shown on cards (default `title`; `text`, `tags`, `created`/`modified`, `icon` get special treatment) |
+|`cardTemplate` |Tiddler that renders card bodies, with `currentTiddler` and `kanban-fields` set |
+|`columnWidth` |Width of a column in pixels |
+|`store`, `storeField` |Where the order of the cards is kept |
+|`editable` |Allow moving cards and editing columns and swimlanes |
+|!Nodes |!|
+|`label`, `color` |Card heading and the color of its left edge |
+|`fields`, `template` |Per card versions of the graph's `fields` and `cardTemplate` |
+|!Edges |!|
+|`label`, `color`, `width`, `arrows`, `stroke` |How the arrow between two cards looks |

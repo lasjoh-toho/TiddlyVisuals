@@ -1,0 +1,8 @@
+created: 20261013120000000
+
+Kanban 0.1, a new engine plugin:
+
+* Nodes become cards in columns and swimlanes, decided by fields of their tiddlers (`status` by default, swimlanes by a field of your choice).
+* Dragging a card to another cell rewrites those fields; the order of the cards is kept with the board.
+* Columns and swimlanes are graph properties and can be added, renamed, moved and removed right on the board.
+* Edges are drawn as arrows between the cards.
