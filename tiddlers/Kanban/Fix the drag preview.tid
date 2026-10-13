@@ -1,0 +1,6 @@
+title: Fix the drag preview
+tags: Task
+status: Doing
+owner: Kim
+
+The card should follow the pointer smoothly.

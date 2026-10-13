@@ -1,0 +1,27 @@
+title: $:/plugins/lasjoh-toho/kanban/templates/card
+
+\whitespace trim
+
+\procedure kanban-field-body()
+<%if [<kanban-field>match[text]] %>
+	<$transclude $tiddler=<<currentTiddler>> $mode=block />
+<%elseif [<kanban-field>match[tags]] %>
+	<div class="kb-field-tags">
+		<$list filter="[<currentTiddler>tags[]]" template="$:/core/ui/TagTemplate" storyview="pop" />
+	</div>
+<%elseif [<kanban-field>match[modified]] [<kanban-field>match[created]] +[limit[1]] %>
+	<span class="kb-field-name"><$text text=<<kanban-field>> /></span>
+	<span class="kb-field-value"><$view field=<<kanban-field>> format="date" template="DDth MMM YYYY" /></span>
+<%elseif [<kanban-field>match[icon]] [<kanban-field>match[image]] +[limit[1]] %>
+	<$image source={{{ [<currentTiddler>get<kanban-field>] }}} />
+<%else%>
+	<span class="kb-field-name"><$text text=<<kanban-field>> /></span>
+	<span class="kb-field-value"><$transclude $tiddler=<<currentTiddler>> $field=<<kanban-field>> $mode=inline /></span>
+<%endif%>
+\end kanban-field-body
+
+<$list filter="[enlist<kanban-fields>] :filter[<..currentTiddler>has<currentTiddler>]" variable="kanban-field">
+<div class={{{ [[kb-field kb-field-]addsuffix<kanban-field>] }}}>
+	<<kanban-field-body>>
+</div>
+</$list>

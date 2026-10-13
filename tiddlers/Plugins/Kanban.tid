@@ -1,0 +1,38 @@
+title: Kanban
+tags: Plugins Engines
+icon: $:/core/images/list-bullet
+builds-upon: Graph
+
+Kanban is an engine for <<.graph>> that lays a graph out as a Kanban board. Nodes become cards in columns and swimlanes, decided by fields of their tiddlers, and edges become arrows between the cards.
+
+<$boundingbox width=100% height=560px>
+
+<$graph.view $tiddler="$:/graph/Kanban Demo" />
+
+</$boundingbox>
+
+Try it: drag a card to another column or swimlane and look at its `status` and `owner` fields, hover a column header to rename or move it, or use ''+ Column'' and the ''+'' at the bottom of a cell.
+
+! Pros
+
+* A card's column and swimlane are ordinary fields of its tiddler, so filters, lists and other boards see the same status.
+* Columns and swimlanes are configurable in the graph settings and right on the board.
+* Arrows between cards show which task leads to or blocks which.
+* No third-party library.
+
+! Cons
+
+* No free placement and no automatic layout; use [[Pinboard]] for that.
+* Experimental.
+
+! Installation
+
+Drag this pill onto your wiki along with <<.graph>>:
+
+@@text-align:center;
+<$link to="$:/plugins/lasjoh-toho/kanban" class="graph-dragger graph-dragger-engine">{{$:/core/images/list-bullet}}<br>Kanban</$link>
+@@
+
+Then pick the template ''Kanban (columns & swimlanes)'' in a graph's settings.
+
+{{$:/plugins/lasjoh-toho/kanban/readme}}
