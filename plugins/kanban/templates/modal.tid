@@ -10,6 +10,7 @@ title: $:/plugins/lasjoh-toho/kanban/templates/modal
 		<div class="kb-modal-subtitle"><$text text=<<currentTiddler>> /></div>
 	<%endif%>
 </div>
+<div class="kb-modal-fields-slot"/>
 <%if [<kanban-editing>match[yes]] %>
 	<div class="kb-modal-edit">
 		<$transclude $tiddler="$:/core/ui/EditTemplate/tags" />

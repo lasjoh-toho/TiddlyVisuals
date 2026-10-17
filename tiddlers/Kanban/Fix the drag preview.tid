@@ -2,5 +2,6 @@ title: Fix the drag preview
 tags: Task Code
 status: Doing
 owner: Kim
+priority: high
 
 The card should follow the pointer smoothly.

@@ -2,5 +2,6 @@ title: Publish the release
 tags: Task Release
 status: To do
 owner: Kim
+priority: normal
 
 Tag the version and upload the bundles.

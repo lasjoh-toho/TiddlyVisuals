@@ -25,8 +25,8 @@ methods.openModal = function(title) {
 	var host = fs && fs !== doc.documentElement ? fs : doc.body;
 	var modal = {title: title, editing: false};
 	modal.content = el(doc, "div", {"class": "kb-modal-content"});
-	modal.place = el(doc, "div", {"class": "kb-modal-place"});
-	modal.editButton = el(doc, "button", {"class": "kb-modal-btn", type: "button", title: "Edit this tiddler"}, ["✎ ", el(doc, "span", {text: "Edit"})]);
+	modal.fields = el(doc, "div", {"class": "kb-modal-fields"});
+	modal.editButton = el(doc, "button", {"class": "kb-modal-btn", type: "button", title: "Edit the text"}, ["✎ ", el(doc, "span", {text: "Edit text"})]);
 	modal.editButton.addEventListener("click", function() { self.setModalEditing(!modal.editing); });
 	var story = el(doc, "button", {"class": "kb-modal-btn", type: "button", title: "Open in story river", text: "↗"});
 	story.addEventListener("click", function() { var t = modal.title; self.closeModal(); self.navigate(t); });
@@ -34,7 +34,7 @@ methods.openModal = function(title) {
 	close.addEventListener("click", function() { self.closeModal(); });
 	modal.controls = el(doc, "div", {"class": "kb-modal-controls"}, [modal.editButton, story, close]);
 	modal.sheet = el(doc, "div", {"class": "kb-modal-sheet", role: "dialog", "aria-modal": "true", "aria-label": title, tabindex: "-1"}, [
-		modal.controls, modal.place, modal.content
+		modal.controls, modal.content
 	]);
 	modal.el = el(doc, "div", {"class": "kb-modal"}, [modal.sheet]);
 	modal.el.addEventListener("click", function(event) {
@@ -102,51 +102,117 @@ methods.renderModal = function() {
 	});
 	modal.widget.render(modal.content, null);
 	modal.el.classList.toggle("kb-modal-editing", modal.editing);
-	modal.editButton.lastChild.textContent = modal.editing ? "Done" : "Edit";
-	modal.editButton.title = modal.editing ? "Finish editing" : "Edit this tiddler";
-	this.renderModalPlace();
+	modal.editButton.lastChild.textContent = modal.editing ? "Done" : "Edit text";
+	modal.editButton.title = modal.editing ? "Finish editing" : "Edit the text";
+	this.renderModalFields();
 };
 
 /*
-Column and swimlane of the card in the viewer, as choices that move it.
+The card's fields, editable right away: its column and swimlane, and the
+board's fields chosen for the viewer. A field with options is a choice.
 */
-methods.renderModalPlace = function() {
+methods.renderModalFields = function() {
 	var modal = this.modal, doc = this.document, self = this;
-	clear(modal.place);
-	if (!this.nodes[modal.title] || !this.layout) {
+	if (!modal) {
 		return;
 	}
-	var place = this.placeOf(modal.title);
-	var select = function(kind, values, current) {
-		var sel = el(doc, "select", {"class": "kb-place-select", disabled: self.isEditable() ? null : "disabled"});
+	var slot = modal.content.querySelector(".kb-modal-fields-slot");
+	if (slot && modal.fields.parentNode !== slot) {
+		slot.appendChild(modal.fields);
+	}
+	// Keep the field being typed in.
+	var active = doc.activeElement && modal.fields.contains(doc.activeElement) ? doc.activeElement.getAttribute("data-kb-field") : null;
+	clear(modal.fields);
+	var title = modal.title;
+	var tiddler = this.wiki.getTiddler(title);
+	var fields = tiddler ? tiddler.fields : undefined;
+	var editable = this.isEditable();
+	var row = function(name, control) {
+		control.setAttribute("data-kb-field", name);
+		control.disabled = !editable;
+		modal.fields.appendChild(el(doc, "label", {"class": "kb-modal-field"}, [
+			el(doc, "span", {"class": "kb-modal-field-name", text: name}), control
+		]));
+	};
+	var choice = function(values, current, labelOf) {
+		var sel = el(doc, "select", {"class": "kb-modal-input"});
+		if (values.indexOf(current) < 0) {
+			values = [current].concat(values);
+		}
 		values.forEach(function(v) {
-			sel.appendChild(el(doc, "option", {value: v, text: self.valueLabel(kind, v)}));
+			sel.appendChild(el(doc, "option", {value: v, text: labelOf(v)}));
 		});
 		sel.value = current;
-		sel.addEventListener("change", function() {
-			var now = self.placeOf(modal.title);
-			self.assignCell(modal.title, kind === "column" ? sel.value : now.column, kind === "lane" ? sel.value : now.lane);
-			self.scheduleRender();
-		});
 		return sel;
 	};
-	var columns = this.layout.columns.slice();
-	if (columns.indexOf(place.column) < 0) {
-		columns.unshift(place.column);
+	var columnField = this.columnField(), laneField = this.laneField();
+	var place = this.placeOf(title);
+	if (columnField && this.layout) {
+		var columns = this.layout.columns.filter(function(c) { return c !== NONE; });
+		var colSelect = choice(columns.concat([NONE]), place.column, function(v) {
+			return v === NONE ? "—" : self.valueLabel("column", v);
+		});
+		colSelect.addEventListener("change", function() {
+			self.assignCell(title, colSelect.value, self.placeOf(title).lane);
+		});
+		row(columnField, colSelect);
+		var color = this.styleOf(place.column).color;
+		colSelect.style.setProperty("--kb-col", color || "var(--kb-muted)");
+		colSelect.classList.add("kb-modal-column");
 	}
-	var color = this.styleOf(place.column).color;
-	var dot = el(doc, "span", {"class": "kb-place-dot"});
-	dot.style.background = color || "var(--kb-muted)";
-	modal.place.appendChild(dot);
-	modal.place.appendChild(select("column", columns, place.column));
-	if (this.laneField()) {
-		var lanes = this.layout.lanes.slice();
-		if (lanes.indexOf(place.lane) < 0) {
-			lanes.unshift(place.lane);
+	if (laneField && this.layout) {
+		var lanes = this.layout.lanes.filter(function(l) { return l !== NONE; });
+		var laneSelect = choice([NONE].concat(lanes), place.lane, function(v) {
+			return self.valueLabel("lane", v);
+		});
+		laneSelect.addEventListener("change", function() {
+			self.assignCell(title, self.placeOf(title).column, laneSelect.value);
+		});
+		row(laneField, laneSelect);
+	}
+	this.viewerFields().forEach(function(def) {
+		var name = def.name, control;
+		var text = Model.fieldText(fields, name);
+		if (def.options) {
+			control = choice([""].concat(def.options), text, function(v) { return v || "—"; });
+		} else {
+			control = el(doc, "input", {type: "text", "class": "kb-modal-input", value: text,
+				placeholder: name === "tags" ? "[[tag one]] tag2" : ""});
+			control.addEventListener("keydown", function(event) {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					control.blur();
+				}
+			});
 		}
-		modal.place.appendChild(el(doc, "span", {"class": "kb-place-sep", text: "·"}));
-		modal.place.appendChild(select("lane", lanes, place.lane));
+		control.addEventListener("change", function() {
+			var value = control.value.trim();
+			var changes = {};
+			if (Model.isListField(name)) {
+				var list = Model.parseList(value);
+				changes[name] = list.length ? list : undefined;
+			} else {
+				changes[name] = value || undefined;
+			}
+			self.updateTiddler(title, changes);
+		});
+		row(name, control);
+	});
+	modal.fields.style.display = modal.fields.firstChild ? "" : "none";
+	if (active) {
+		var again = modal.fields.querySelector("[data-kb-field='" + active.replace(/'/g, "\\'") + "']");
+		again && again.focus();
 	}
+};
+
+/*
+Fields the viewer shows besides the column and swimlane.
+*/
+methods.viewerFields = function() {
+	var skip = [this.columnField(), this.laneField(), "title", "text"];
+	return this.fieldDefs.filter(function(def) {
+		return def.viewer !== false && skip.indexOf(def.name) < 0;
+	});
 };
 
 methods.placeOf = function(id) {
@@ -197,8 +263,9 @@ methods.touchModalTiddler = function() {
 methods.refreshModal = function(changes) {
 	if (this.modal && this.modal.widget) {
 		this.modal.widget.refresh(changes);
-		if (changes[this.modal.title]) {
-			this.renderModalPlace();
+		if (changes[this.modal.title] || (this.graph.store && changes[this.graph.store]) ||
+			!this.modal.content.contains(this.modal.fields)) {
+			this.renderModalFields();
 		}
 	}
 };

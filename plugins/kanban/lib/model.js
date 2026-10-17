@@ -101,8 +101,8 @@ valueOf: function(id) -> {column, lane}
 options: {columns, lanes (title lists, may be blank), hasLanes}
 
 Returns {columns: [values], lanes: [values], cells: {key: [ids]}} where a
-NONE entry is added in front of the columns (or lanes) only when some card
-needs it. Use cellKey() to read cells.
+NONE entry is added in front of the columns only when some card needs it,
+and in front of the swimlanes always. Use cellKey() to read cells.
 */
 exports.layout = function(ids, valueOf, options) {
 	options = options || {};
@@ -111,13 +111,12 @@ exports.layout = function(ids, valueOf, options) {
 	var lanes = options.hasLanes ?
 		exports.resolveValues(options.lanes, values.map(function(v) { return v.lane; })) : [];
 	var cells = Object.create(null);
-	var noneColumn = false, noneLane = false;
+	var noneColumn = false;
 	for (var i = 0; i < ids.length; i++) {
 		var column = columns.indexOf(values[i].column) >= 0 ? values[i].column : NONE;
 		var lane = NONE;
 		if (options.hasLanes) {
 			lane = lanes.indexOf(values[i].lane) >= 0 ? values[i].lane : NONE;
-			noneLane = noneLane || lane === NONE;
 		}
 		noneColumn = noneColumn || column === NONE;
 		var key = cellKey(column, lane);
@@ -126,7 +125,8 @@ exports.layout = function(ids, valueOf, options) {
 	if (noneColumn || columns.length === 0) {
 		columns.unshift(NONE);
 	}
-	if (options.hasLanes && (noneLane || lanes.length === 0)) {
+	if (options.hasLanes) {
+		// "Not assigned" stays, so cards can always be put back into it.
 		lanes.unshift(NONE);
 	}
 	if (!options.hasLanes) {
@@ -390,25 +390,124 @@ exports.columnStyle = function(styles, value, index) {
 	};
 };
 
-/*** Board filter and projects ***/
+/*** Fields ***/
 
 /*
-The filter that selects a project, from its tag.
+The fields a board works with, kept as JSON in a field of the store
+tiddler (`kanban-fields`), in order:
+
+[ {"name": "priority", "options": ["low", "high"]},
+  {"name": "due", "viewer": false} ]
+
+options: values offered for the field (missing: free text)
+viewer:  whether the card viewer shows the field (default yes)
 */
-exports.projectFilter = function(tag) {
-	return "[tag[" + tag + "]]";
+exports.parseFieldDefs = function(text) {
+	var data;
+	try {
+		data = text ? JSON.parse(text) : [];
+	} catch (e) {
+		data = [];
+	}
+	var out = [], seen = Object.create(null);
+	(Array.isArray(data) ? data : []).forEach(function(entry) {
+		var name = entry && typeof entry.name === "string" ? entry.name.trim() : "";
+		if (!name || seen[name]) {
+			return;
+		}
+		seen[name] = true;
+		var def = {name: name};
+		if (Array.isArray(entry.options)) {
+			var options = exports.parseOptions(entry.options.filter(function(o) {
+				return typeof o === "string";
+			}).join(","));
+			if (options.length) {
+				def.options = options;
+			}
+		}
+		if (entry.viewer === false) {
+			def.viewer = false;
+		}
+		out.push(def);
+	});
+	return out;
+};
+
+exports.stringifyFieldDefs = function(defs) {
+	return defs.length ? JSON.stringify(defs) : "";
 };
 
 /*
-Which project a board filter selects, if it is exactly a project filter.
+Options as people type them: separated by commas.
 */
-exports.activeProject = function(filter, projects) {
-	for (var i = 0; i < projects.length; i++) {
-		if ((filter || "").trim() === exports.projectFilter(projects[i])) {
-			return projects[i];
+exports.parseOptions = function(text) {
+	var seen = Object.create(null);
+	return (text || "").split(",").map(function(o) { return o.trim(); }).filter(function(o) {
+		if (!o || seen[o]) {
+			return false;
+		}
+		seen[o] = true;
+		return true;
+	});
+};
+
+/*
+Changes the definition of field `name`, adding it when missing. Keys of
+`patch` set to null are removed; a `patch` of null removes the field.
+Returns the new list.
+*/
+exports.patchFieldDef = function(defs, name, patch) {
+	var out = defs.map(function(def) { return $tw.utils.extend({}, def); });
+	var index = -1;
+	for (var i = 0; i < out.length; i++) {
+		if (out[i].name === name) {
+			index = i;
 		}
 	}
-	return null;
+	if (patch === null) {
+		index >= 0 && out.splice(index, 1);
+		return out;
+	}
+	var def = index >= 0 ? out[index] : {name: name};
+	for (var key in patch) {
+		var value = patch[key];
+		if (value === null || value === undefined || (Array.isArray(value) && !value.length) || (key === "viewer" && value === true)) {
+			delete def[key];
+		} else {
+			def[key] = value;
+		}
+	}
+	if (index < 0) {
+		out.push(def);
+	}
+	return out;
+};
+
+/*
+A field's value as text for an input.
+*/
+exports.fieldText = function(fields, name) {
+	var value = fields ? fields[name] : undefined;
+	if (value === undefined || value === null) {
+		return "";
+	}
+	if (Array.isArray(value)) {
+		return $tw.utils.stringifyList(value);
+	}
+	if (value instanceof Date) {
+		return $tw.utils.stringifyDate(value);
+	}
+	return String(value);
+};
+
+/*
+Moves `value` to position `index` of `list`, counting without it.
+*/
+exports.moveValueTo = function(list, value, index) {
+	var out = list.filter(function(v) { return v !== value && v !== NONE; });
+	index = Math.max(0, Math.min(index, out.length));
+	out.splice(index, 0, value);
+	return out;
 };
 
 /*** Geometry for connections ***/

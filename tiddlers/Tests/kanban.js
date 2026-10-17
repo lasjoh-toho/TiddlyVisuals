@@ -184,11 +184,53 @@ it("keeps the look of each column", function() {
 	expect(Model.columnStyle(styles, "Other", Model.PALETTE.length).view).toBe("full");
 });
 
-it("knows which project the board shows", function() {
-	expect(Model.projectFilter("Project A")).toBe("[tag[Project A]]");
-	expect(Model.activeProject(" [tag[Web]] ", ["App", "Web"])).toBe("Web");
-	expect(Model.activeProject("[tag[Web]tag[App]]", ["App", "Web"])).toBe(null);
-	expect(Model.activeProject("", ["App"])).toBe(null);
+it("keeps the board's fields and their options", function() {
+	var defs = Model.parseFieldDefs('[{"name":"priority","options":["low"," high ","low",""]},{"name":"due","viewer":false},{"name":"priority"},{"x":1},"bad"]');
+	expect(defs).toEqual([{name: "priority", options: ["low", "high"]}, {name: "due", viewer: false}]);
+	expect(Model.parseFieldDefs("not json")).toEqual([]);
+	expect(Model.parseOptions(" a, b ,,a, c d ")).toEqual(["a", "b", "c d"]);
+	defs = Model.patchFieldDef(defs, "due", {viewer: true, options: ["today"]});
+	expect(defs[1]).toEqual({name: "due", options: ["today"]});
+	defs = Model.patchFieldDef(defs, "owner", {});
+	expect(defs.map(function(d) { return d.name; })).toEqual(["priority", "due", "owner"]);
+	defs = Model.patchFieldDef(defs, "priority", {options: []});
+	expect(defs[0]).toEqual({name: "priority"});
+	defs = Model.patchFieldDef(defs, "due", null);
+	expect(JSON.parse(Model.stringifyFieldDefs(defs))).toEqual([{name: "priority"}, {name: "owner"}]);
+	expect(Model.stringifyFieldDefs([])).toBe("");
+	expect(Model.fieldText({tags: ["a b", "c"], n: 3}, "tags")).toBe("[[a b]] c");
+	expect(Model.fieldText({n: 3}, "n")).toBe("3");
+	expect(Model.fieldText(undefined, "n")).toBe("");
+});
+
+it("moves columns and swimlanes to a position", function() {
+	expect(Model.moveValueTo(["a", "b", "c"], "a", 2)).toEqual(["b", "c", "a"]);
+	expect(Model.moveValueTo(["a", "b", "c"], "c", 0)).toEqual(["c", "a", "b"]);
+	expect(Model.moveValueTo(["a", "b", "c"], "b", 9)).toEqual(["a", "c", "b"]);
+});
+
+it("always has a swimlane for cards without a value", function() {
+	var layout = Model.layout(["A"], function() { return {column: "x", lane: "Jo"}; }, {hasLanes: true, lanes: "Jo"});
+	expect(layout.lanes).toEqual([Model.NONE, "Jo"]);
+	expect(layout.cells[Model.cellKey("x", "Jo")]).toEqual(["A"]);
+});
+
+it("shows a saved search that is a tag as a project", function() {
+	var wiki = new $tw.Wiki();
+	wiki.addTiddlers([
+		{title: "A", status: "Doing", tags: ["Web"]},
+		{title: "B", status: "Doing", text: "web design"},
+		{title: "C", status: "Doing", tags: ["App"]}]);
+	var e = engine(wiki, {projects: "Web App"}, ["A", "B", "C"]);
+	e.search = "Web";
+	e.computeMatches();
+	expect(e.currentProject()).toBe("Web");
+	expect(["A", "B", "C"].filter(function(id) { return e.cardShown(id); })).toEqual(["A"]);
+	// Not saved: plain words
+	e.graph.projects = "";
+	e.computeMatches();
+	expect(e.currentProject()).toBe(null);
+	expect(["A", "B", "C"].filter(function(id) { return e.cardShown(id); })).toEqual(["A", "B"]);
 });
 
 it("renames the look of a renamed column", function() {
