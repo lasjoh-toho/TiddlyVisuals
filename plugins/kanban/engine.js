@@ -33,7 +33,7 @@ exports.properties = {
 		columnWidth: {type: "number", min: 120, default: 260, description: "Width of a column"},
 		editable: {type: "boolean", default: true, description: "Allow moving cards and editing columns and swimlanes"},
 		boardFilter: {type: "string", description: "Filter run the cards must pass, e.g. [tag[Project A]] to show one project"},
-		projects: {type: "string", description: "Tags offered as project buttons above the board (title list)"},
+		projects: {type: "string", description: "Saved searches offered in the search menu (title list); a saved tag shows that project"},
 		zoom: {type: "boolean", default: true},
 		focus: {type: "actions"},
 		blur: {type: "actions"},
@@ -102,6 +102,7 @@ exports.init = function(element, objects, options) {
 	this.styles = Object.create(null);
 	this.expanded = Object.create(null);
 	this.cardColumn = Object.create(null);
+	this.fieldDefs = [];
 	this.search = "";
 	this.buildDom();
 	this.onWikiChange = this.handleWikiChange.bind(this);
@@ -263,14 +264,35 @@ exports.loadOrder = function() {
 	this.orderText = this.readOrderText();
 	this.order = Model.parseList(this.orderText);
 	this.loadStyles();
+	this.loadFieldDefs();
+	this.restoreSearch && this.restoreSearch();
 };
 
 var STYLE_FIELD = "kanban-columns";
+var FIELDS_FIELD = "kanban-fields";
 
 exports.loadStyles = function() {
 	var tiddler = this.graph.store && this.wiki.getTiddler(this.graph.store);
 	this.stylesText = tiddler ? tiddler.getFieldString(STYLE_FIELD) : "";
 	this.styles = Model.parseStyles(this.stylesText);
+};
+
+exports.loadFieldDefs = function() {
+	var tiddler = this.graph.store && this.wiki.getTiddler(this.graph.store);
+	this.fieldDefsText = tiddler ? tiddler.getFieldString(FIELDS_FIELD) : "";
+	this.fieldDefs = Model.parseFieldDefs(this.fieldDefsText);
+};
+
+exports.saveFieldDefs = function(defs) {
+	this.fieldDefs = defs;
+	this.fieldDefsText = Model.stringifyFieldDefs(defs);
+	if (this.graph.store) {
+		var fields = {};
+		fields[FIELDS_FIELD] = this.fieldDefsText || undefined;
+		this.updateTiddler(this.graph.store, fields);
+	}
+	this.renderModalFields && this.renderModalFields();
+	this.scheduleRender();
 };
 
 exports.saveStyles = function(styles) {
@@ -346,6 +368,10 @@ exports.handleWikiChange = function(changes) {
 		var store = this.wiki.getTiddler(this.graph.store);
 		if ((store ? store.getFieldString(STYLE_FIELD) : "") !== this.stylesText) {
 			this.loadStyles();
+		}
+		if ((store ? store.getFieldString(FIELDS_FIELD) : "") !== this.fieldDefsText) {
+			this.loadFieldDefs();
+			this.renderModalFields && this.renderModalFields();
 		}
 		relevant = true;
 	}
@@ -688,7 +714,10 @@ exports.valueLabel = function(kind, value) {
 		}
 		return value;
 	}
-	var field = kind === "column" ? this.columnField() : this.laneField();
+	if (kind === "lane") {
+		return "Not assigned";
+	}
+	var field = this.columnField();
 	return field ? "No " + field : "Cards";
 };
 
@@ -713,14 +742,9 @@ exports.renderHeader = function(kind, value, count, values, columnIndex) {
 	var tools = el(doc, "span", {"class": "kb-header-tools"});
 	if (this.canConfigure() && value !== NONE) {
 		var list = values.filter(function(v) { return v !== NONE; });
-		var index = list.indexOf(value);
-		var back = kind === "column" ? "◂" : "▴", forward = kind === "column" ? "▸" : "▾";
-		index > 0 && tools.appendChild(toolButton(doc, back, "Move " + (kind === "column" ? "left" : "up"), function() {
-			self.writeValues(kind, Model.moveValue(list, value, -1));
-		}));
-		index < list.length - 1 && tools.appendChild(toolButton(doc, forward, "Move " + (kind === "column" ? "right" : "down"), function() {
-			self.writeValues(kind, Model.moveValue(list, value, 1));
-		}));
+		// Drag the header to move the column or swimlane.
+		header.classList.add("kb-movable");
+		header.title = "Drag to move · double-click for " + (kind === "column" ? "settings" : "renaming");
 		if (kind === "column") {
 			tools.appendChild(toolButton(doc, "⚙", "Column settings: name, color, icon, card view, fields", function(event) {
 				self.openColumnSettings(value, header);
@@ -951,6 +975,21 @@ exports.handlePointerDown = function(event) {
 	if (event.button !== 0 || this.drag) {
 		return;
 	}
+	var header = closest(event.target, ".kb-header.kb-movable", this.grid);
+	if (header && !closest(event.target, INTERACTIVE, header)) {
+		this.drag = {
+			header: header,
+			kind: header.getAttribute("data-kb-kind"),
+			value: header.getAttribute("data-kb-value"),
+			startX: event.clientX,
+			startY: event.clientY,
+			moving: false
+		};
+		this.document.addEventListener("pointermove", this.onPointerMove);
+		this.document.addEventListener("pointerup", this.onPointerUp);
+		this.document.addEventListener("pointercancel", this.onPointerUp);
+		return;
+	}
 	var cardEl = closest(event.target, ".kb-card", this.grid);
 	if (!cardEl || closest(event.target, INTERACTIVE, cardEl)) {
 		return;
@@ -976,9 +1015,18 @@ exports.handlePointerMove = function(event) {
 		if (!this.isEditable() || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_THRESHOLD) {
 			return;
 		}
-		this.beginDrag(event);
+		if (drag.header) {
+			this.beginHeaderDrag();
+		} else {
+			this.beginDrag(event);
+		}
 	}
 	event.preventDefault();
+	if (drag.header) {
+		this.placeHeaderMarker(event.clientX, event.clientY);
+		this.autoScroll(event.clientX, event.clientY);
+		return;
+	}
 	drag.ghost.style.transform = "translate(" + (event.clientX - drag.offsetX) + "px," + (event.clientY - drag.offsetY) + "px) rotate(2deg)";
 	this.placePlaceholder(event.clientX, event.clientY);
 	this.autoScroll(event.clientX, event.clientY);
@@ -1002,6 +1050,90 @@ exports.beginDrag = function(event) {
 	drag.el.parentNode.removeChild(drag.el);
 	this.root.classList.add("kb-is-dragging");
 	this.fire("nodes", drag.id, "blur", event);
+};
+
+/*
+Moving a column or swimlane: a marker shows where it will go.
+*/
+exports.beginHeaderDrag = function() {
+	var drag = this.drag;
+	drag.moving = true;
+	drag.header.classList.add("kb-header-dragging");
+	drag.marker = el(this.document, "div", {"class": "kb-move-marker kb-move-" + drag.kind});
+	this.board.appendChild(drag.marker);
+	this.root.classList.add("kb-is-dragging");
+};
+
+exports.placeHeaderMarker = function(x, y) {
+	var drag = this.drag, self = this;
+	var vertical = drag.kind === "column";
+	var headers = Array.prototype.filter.call(this.grid.querySelectorAll(".kb-" + drag.kind + "-header.kb-movable"), function(h) {
+		return h.getAttribute("data-kb-value") !== drag.value;
+	});
+	var index = 0;
+	headers.forEach(function(h) {
+		var r = h.getBoundingClientRect();
+		if (vertical ? x > r.left + r.width / 2 : y > r.top + r.height / 2) {
+			index++;
+		}
+	});
+	drag.index = index;
+	// Marker between the neighbours, in board pixels.
+	var boardRect = this.board.getBoundingClientRect();
+	var zoom = this.zoom;
+	var neighbour = headers[index] || headers[index - 1] || drag.header;
+	var r = neighbour.getBoundingClientRect();
+	var after = !headers[index];
+	var marker = drag.marker.style;
+	if (vertical) {
+		var gx = after ? r.right + 7 : r.left - 7;
+		marker.left = ((gx - boardRect.left) / zoom - 2) + "px";
+		marker.top = "0px";
+		marker.height = (this.board.scrollHeight) + "px";
+		marker.width = "";
+	} else {
+		var lane = self.laneRowRect(neighbour);
+		var gy = after ? lane.bottom : lane.top;
+		marker.top = ((gy - boardRect.top) / zoom - 2) + "px";
+		marker.left = "0px";
+		marker.width = this.board.scrollWidth + "px";
+		marker.height = "";
+	}
+};
+
+/*
+The vertical extent of a swimlane's row, from the cells beside its header.
+*/
+exports.laneRowRect = function(header) {
+	var r = header.getBoundingClientRect();
+	var value = header.getAttribute("data-kb-value");
+	var cells = this.grid.querySelectorAll(".kb-cell");
+	var top = r.top, bottom = r.bottom;
+	for (var i = 0; i < cells.length; i++) {
+		if (cells[i].getAttribute("data-kb-lane") === value) {
+			var c = cells[i].getBoundingClientRect();
+			top = Math.min(top, c.top);
+			bottom = Math.max(bottom, c.bottom);
+		}
+	}
+	return {top: top, bottom: bottom};
+};
+
+exports.endHeaderDrag = function(commit) {
+	var drag = this.drag;
+	this.drag = null;
+	remove(drag.marker);
+	drag.header.classList.remove("kb-header-dragging");
+	this.root.classList.remove("kb-is-dragging");
+	if (commit && drag.index !== undefined) {
+		var list = this.currentValues(drag.kind);
+		var next = Model.moveValueTo(list, drag.value, drag.index);
+		if (next.join("\u0000") !== list.join("\u0000")) {
+			this.writeValues(drag.kind, next);
+			return;
+		}
+	}
+	this.scheduleRender();
 };
 
 exports.placePlaceholder = function(x, y) {
@@ -1050,7 +1182,7 @@ exports.handlePointerUp = function(event) {
 		this.endDrag(event.type !== "pointercancel");
 	} else {
 		this.endDrag(false);
-		if (event.type === "pointerup") {
+		if (event.type === "pointerup" && !drag.header) {
 			this.activateCard(drag.id, event);
 		}
 	}
@@ -1066,6 +1198,11 @@ exports.endDrag = function(commit) {
 	this.document.removeEventListener("pointerup", this.onPointerUp);
 	this.document.removeEventListener("pointercancel", this.onPointerUp);
 	if (!drag.moving) {
+		return;
+	}
+	if (drag.header) {
+		this.drag = drag;
+		this.endHeaderDrag(commit);
 		return;
 	}
 	remove(drag.ghost);

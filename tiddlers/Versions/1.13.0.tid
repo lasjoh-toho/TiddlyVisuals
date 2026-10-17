@@ -1,0 +1,11 @@
+created: 20261017160000000
+
+Kanban 0.3:
+
+* Board settings choose which fields make the columns and the swimlanes.
+* The ''Not assigned'' swimlane is always there, so cards can be added to it and put back into it.
+* The board's fields can be defined, with options to choose from, and whether they show on cards and in the card viewer.
+* In the card viewer, the column, swimlane and the board's fields are edited in place.
+* The search has a magnifying glass and a menu of saved searches (+ saves the current one, − removes one). It replaces the project buttons; a saved tag still shows that project.
+* Columns and swimlanes are moved by dragging their headers.
+* A slimmer, transparent toolbar and more compact column headers.

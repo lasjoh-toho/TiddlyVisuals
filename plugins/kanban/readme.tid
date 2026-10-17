@@ -17,20 +17,22 @@ Pick the template ''Kanban (columns & swimlanes)'' in a graph's settings, or wri
 !! Where things are kept
 
 * ''A card's column and swimlane'' are values of fields of the card's own tiddler: `status` by default (graph property `columnField`), and for swimlanes the field named in `laneField`. Moving a card rewrites those fields, so lists, filters and other boards see the same status. With `columnField` set to `tags`, a card sits in the first column whose value is one of its tags, and moving it swaps that tag.
-* ''The columns and swimlanes'' (`columns`, `lanes`) are graph properties, title lists in order. Left blank, the board shows every value its cards have. Cards whose value is missing or not in the list gather in a column (or swimlane) in front, named after the field.
+* ''The columns and swimlanes'' (`columns`, `lanes`) are graph properties, title lists in order. Left blank, the board shows every value its cards have. Cards whose value is missing or not in the list gather in a column in front, named after the field; with swimlanes, the ''Not assigned'' swimlane is always there.
 * ''How columns look'' (display name, color, icon, card view and fields) is JSON in the `kanban-columns` field of the `store` tiddler, keyed by the column's value.
+* ''The board's fields'' (with the values offered for each, and whether the card viewer shows them) are JSON in the `kanban-fields` field of the `store` tiddler.
 * ''The order of the cards'' is a title list in the `kanban` field of the `store` tiddler. With the Kanban template, that is the graph tiddler itself, which then holds everything about the board; only the cards' content and their fields live in their own tiddlers.
 
 !! On the board
 
 * Each column is a colored surface with its icon, name, card count and a ''+'' that adds a card. Swimlanes are only divided by dashed lines.
-* ⚙ on a column header (or a double-click) sets its name, color, icon, how its cards look (''Full cards'', ''Collapsible'' with a ↕ toggle, or ''Titles only'') and which fields its cards show.
-* Click a card to read it in a viewer that can grow to the full height of the window, with ''Edit'', and the card's column and swimlane as menus.
-* The bar above the board searches the cards and holds the ''projects'': tags given in the board settings (⚙ at the right). Clicking one shows only its cards, and new cards get the tag, so several projects can share one board. ''All'' shows everything. The board filter can also be any filter run.
+* ⚙ on a column header (or a double-click) sets its name, color, icon, how its cards look (''Full cards'', ''Foldable'' with a ↕ toggle, or ''Compact'') and which fields its cards show.
+* Click a card to open it in a viewer that can grow to the full height of the window. Its column, swimlane and the board's fields can be changed right there; a field with options is a choice. ''Edit text'' edits the text.
+* The search (🔍 above the board) narrows the cards to those with all the words typed. ▾ opens the saved searches: pick one, ''+'' saves the current search, − removes one. A saved search that is a tag shows that tag's cards as a project, and new cards get the tag, so several projects can share one board.
+* ⚙ at the top right holds the board settings: the board filter (any filter run), which fields make the columns and the swimlanes, the board's fields with their options and where they show (on cards, in the viewer), and the column width.
 * ⛶ shows the board on the whole screen.
 * Drag a card to move it within a column or to another column or swimlane. Click it to open it in the viewer (unless the graph gives nodes their own `actions`).
-* ''+'' at the bottom of a cell adds a tiddler there: type a title; a missing tiddler is created with that cell's values. You can also drag a tiddler link from the story river onto a cell.
-* With a store tiddler, column and swimlane headers can be edited in place: ''+ Column'', ''+ Swimlane'', rename (✎ or double-click), move (◂ ▸), remove (×). Renaming a column also renames the value on its cards; removing one leaves the cards' fields alone.
+* ''+'' in a cell adds a tiddler there: type a title; a missing tiddler is created with that cell's values. You can also drag a tiddler link from the story river onto a cell.
+* With a store tiddler, columns and swimlanes are edited on the board: ''+ Column'', ''+ Swimlane'', drag a header to move it, rename (✎ or double-click), remove (×). Renaming a column also renames the value on its cards; removing one leaves the cards' fields alone.
 * Ctrl + mouse wheel zooms the board.
 
 !! Properties
@@ -44,7 +46,7 @@ Pick the template ''Kanban (columns & swimlanes)'' in a graph's settings, or wri
 |`cardTemplate` |Tiddler that renders card bodies, with `currentTiddler` and `kanban-fields` set |
 |`columnWidth` |Width of a column in pixels |
 |`boardFilter` |Filter run the cards must pass, e.g. `[tag[Project A]]` |
-|`projects` |Tags offered as project buttons above the board |
+|`projects` |Saved searches (title list); a saved tag is a project |
 |`store`, `storeField` |Where the order of the cards is kept |
 |`editable` |Allow moving cards and editing columns and swimlanes |
 |!Nodes |!|
