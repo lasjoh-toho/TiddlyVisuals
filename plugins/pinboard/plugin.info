@@ -6,7 +6,7 @@
 	"version": "0.3.0",
 	"stability": "STABILITY_1_EXPERIMENTAL",
 	"core-version": ">=5.3.7",
-	"source": "https://github.com/lasjoh-toho/tw5-graph",
+	"source": "https://github.com/lasjoh-toho/TiddlyVisuals",
 	"dependents": "$:/plugins/flibbles/graph",
 	"list": "readme",
 	"plugin-type": "plugin"

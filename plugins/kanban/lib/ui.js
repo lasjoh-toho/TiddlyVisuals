@@ -33,6 +33,7 @@ var BUILTIN_FIELDS = ["title", "text"];
 // Never offered as columns or swimlanes.
 var NOT_GROUPING = {title: true, text: true, created: true, modified: true, creator: true, modifier: true, revision: true, bag: true, type: true};
 
+var COG = "$:/core/images/options-button";
 var LENS = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
 
 // What was searched, per board, so it survives the board being rebuilt.
@@ -61,9 +62,10 @@ methods.buildToolbar = function() {
 	this.searchWrap = el(doc, "div", {"class": "kb-search-wrap"}, [lens, this.searchInput, this.savedButton]);
 	this.filterBadge = el(doc, "button", {"class": "kb-filter-badge", type: "button", title: "Board filter (click to change)"});
 	this.filterBadge.addEventListener("click", function() { self.openBoardSettings(); });
-	this.settingsButton = iconButton(doc, "⚙", "Board settings: filter, columns, swimlanes, fields", function() {
+	this.settingsButton = iconButton(doc, "", "Board settings: filter, columns, swimlanes, fields", function() {
 		self.openBoardSettings();
 	});
+	this.settingsButton.innerHTML = this.wiki.renderTiddler("text/html", COG, {parseAsInline: true});
 	this.fullscreenButton = iconButton(doc, "⛶", "Fullscreen", function() {
 		self.toggleFullscreen();
 	});
@@ -585,7 +587,7 @@ methods.openColumnSettings = function(value, anchor) {
 			return;
 		}
 		var b = el(doc, "button", {"class": "kb-icon-choice" + (own.icon === title ? " kb-on" : ""), type: "button", title: title.replace("$:/core/images/", "")});
-		b.innerHTML = self.wiki.renderTiddler("text/html", title);
+		b.innerHTML = self.wiki.renderTiddler("text/html", title, {parseAsInline: true});
 		b.addEventListener("click", function() { patch({icon: title}); self.reopenColumnSettings(value); });
 		icons.appendChild(b);
 	});

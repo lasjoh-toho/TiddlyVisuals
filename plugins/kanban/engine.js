@@ -733,7 +733,7 @@ exports.renderHeader = function(kind, value, count, values, columnIndex) {
 		header.style.setProperty("--kb-col", style.color || "var(--kb-muted)");
 		if (style.icon) {
 			var icon = el(doc, "span", {"class": "kb-header-icon"});
-			icon.innerHTML = this.wiki.renderTiddler("text/html", style.icon);
+			icon.innerHTML = this.wiki.renderTiddler("text/html", style.icon, {parseAsInline: true});
 			header.appendChild(icon);
 		}
 	}
@@ -746,9 +746,11 @@ exports.renderHeader = function(kind, value, count, values, columnIndex) {
 		header.classList.add("kb-movable");
 		header.title = "Drag to move · double-click for " + (kind === "column" ? "settings" : "renaming");
 		if (kind === "column") {
-			tools.appendChild(toolButton(doc, "⚙", "Column settings: name, color, icon, card view, fields", function(event) {
+			var cog = toolButton(doc, "", "Column settings: name, color, icon, card view, fields", function(event) {
 				self.openColumnSettings(value, header);
-			}));
+			});
+			cog.innerHTML = this.wiki.renderTiddler("text/html", "$:/core/images/options-button", {parseAsInline: true});
+			tools.appendChild(cog);
 		} else {
 			tools.appendChild(toolButton(doc, "✎", "Rename", function() {
 				self.startEditing({kind: kind, value: value});

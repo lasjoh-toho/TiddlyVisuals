@@ -73,10 +73,10 @@ jobs:
           if [ -f "${notes}" ]; then
             sed '1,/^$/d' "${notes}" > notes.md
           else
-            echo "TW5-Graph ${tag}" > notes.md
+            echo "TiddlyVisuals ${tag}" > notes.md
           fi
           gh release create "${tag}" \
-            --title="TW5-Graph ${tag}" \
+            --title="TiddlyVisuals ${tag}" \
             --notes-file notes.md \
             output/*.json
         fi
