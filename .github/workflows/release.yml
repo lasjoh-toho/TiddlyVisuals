@@ -3,6 +3,8 @@ name: Build Pages and Bundle
 on:
   push:
     tags: v*.*
+  # Started on a tag by the "Publish release" workflow.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -66,8 +68,15 @@ jobs:
         if gh release view "${tag}" > /dev/null 2>&1; then
           gh release upload "${tag}" output/*.json --clobber
         else
+          # The notes are the version's tiddler, without its header.
+          notes="tiddlers/Versions/${tag#v}.tid"
+          if [ -f "${notes}" ]; then
+            sed '1,/^$/d' "${notes}" > notes.md
+          else
+            echo "TW5-Graph ${tag}" > notes.md
+          fi
           gh release create "${tag}" \
             --title="TW5-Graph ${tag}" \
-            --notes-from-tag \
+            --notes-file notes.md \
             output/*.json
         fi
