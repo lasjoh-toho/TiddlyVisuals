@@ -33,9 +33,159 @@ type: text/vnd.tiddlywiki
 
 .kb-scroll {
 	position: absolute;
-	inset: 0;
+	inset: 48px 0 0 0;
 	overflow: auto;
 }
+
+/*** Toolbar ***/
+
+.kb-toolbar {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: 48px;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--kb-border);
+	background: var(--kb-bg);
+	z-index: 6;
+}
+
+.kb-search-wrap { flex: 0 1 220px; min-width: 120px; }
+
+.kb-search {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 5px 10px;
+	border: 1px solid var(--kb-border);
+	border-radius: 16px;
+	background: var(--kb-card-bg);
+	color: var(--kb-fg);
+	font: inherit;
+}
+
+.kb-projects {
+	display: flex;
+	gap: 6px;
+	flex: 1;
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.kb-chip {
+	flex: none;
+	padding: 4px 12px;
+	border: 1px solid var(--kb-border);
+	border-radius: 16px;
+	background: var(--kb-card-bg);
+	color: var(--kb-fg);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.kb-chip:hover { border-color: var(--kb-accent); }
+.kb-chip.kb-chip-on { background: var(--kb-accent); border-color: var(--kb-accent); color: <<colour background>>; }
+.kb-chip-filter { cursor: default; font-family: monospace; font-size: 12px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+
+.kb-toolbar-end { display: flex; gap: 4px; margin-left: auto; }
+
+.kb-iconbtn {
+	width: 34px;
+	height: 34px;
+	border: none;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--kb-fg);
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+}
+.kb-iconbtn:hover { background: var(--kb-header-bg); }
+.kb-iconbtn.kb-on { background: var(--kb-accent); color: <<colour background>>; }
+
+/* Fullscreen: the page is fullscreen, the board covers it below
+   TiddlyWiki's dialogs. */
+.kb-root.kb-fullscreen {
+	position: fixed;
+	inset: 0;
+	z-index: 850;
+	width: 100vw;
+	height: 100vh;
+}
+html:has(.kb-root.kb-fullscreen) .tc-topbar { display: none; }
+
+/*** Popovers ***/
+
+.kb-popover {
+	position: absolute;
+	z-index: 20;
+	width: 300px;
+	max-height: calc(100% - 16px);
+	overflow-y: auto;
+	box-sizing: border-box;
+	padding: 12px;
+	background: var(--kb-card-bg);
+	border: 1px solid var(--kb-border);
+	border-radius: 12px;
+	box-shadow: 0 10px 30px rgba(0,0,0,.18);
+}
+.kb-form { display: flex; flex-direction: column; gap: 10px; }
+.kb-form-field { display: flex; flex-direction: column; gap: 4px; }
+.kb-form-label { font-size: 12px; font-weight: 600; color: var(--kb-muted); }
+.kb-form-hint { font-size: 11px; color: var(--kb-muted); line-height: 1.35; }
+.kb-form-foot { display: flex; justify-content: flex-end; }
+.kb-range { display: flex; align-items: center; gap: 8px; }
+.kb-range input { flex: 1; }
+.kb-range-value { font-size: 12px; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.kb-swatches, .kb-icons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kb-swatch {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 2px solid var(--kb-card-bg);
+	box-shadow: 0 0 0 1px var(--kb-border);
+	background: var(--kb-swatch);
+	cursor: pointer;
+	padding: 0;
+}
+.kb-swatch.kb-on { box-shadow: 0 0 0 2px var(--kb-accent); }
+.kb-color { width: 26px; height: 26px; padding: 0; border: none; background: none; cursor: pointer; }
+.kb-icon-choice {
+	width: 30px;
+	height: 30px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 1px solid var(--kb-border);
+	border-radius: 6px;
+	background: var(--kb-card-bg);
+	color: var(--kb-fg);
+	fill: var(--kb-fg);
+	cursor: pointer;
+}
+.kb-icon-choice svg { width: 18px; height: 18px; }
+.kb-icon-choice.kb-on { border-color: var(--kb-accent); box-shadow: 0 0 0 1px var(--kb-accent); }
+.kb-field-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-bottom: 6px; }
+.kb-check { font-size: 13px; cursor: pointer; overflow-wrap: anywhere; }
+.kb-textbtn {
+	padding: 4px 10px;
+	border: 1px solid var(--kb-border);
+	border-radius: 8px;
+	background: var(--kb-card-bg);
+	color: var(--kb-fg);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+}
+.kb-textbtn:disabled { opacity: .5; cursor: default; }
+.kb-textbtn.kb-danger { color: <<colour alert-highlight>>; }
 
 .kb-board {
 	position: relative;
@@ -46,9 +196,34 @@ type: text/vnd.tiddlywiki
 }
 
 .kb-grid {
+	position: relative;
 	display: grid;
-	gap: 8px;
+	column-gap: 14px;
+	row-gap: 0;
 	align-items: stretch;
+}
+
+/* One tinted surface per column, from its header to the last swimlane. */
+.kb-surface {
+	position: relative;
+	z-index: 0;
+	border-radius: 16px;
+	background: color-mix(in srgb, var(--kb-col) 15%, var(--kb-bg));
+}
+.kb-surface.kb-none {
+	background: transparent;
+	border: 2px dashed color-mix(in srgb, var(--kb-fg) 18%, transparent);
+	box-sizing: border-box;
+}
+
+/* Swimlanes are only dashed lines across the board. */
+.kb-lane-separator {
+	position: relative;
+	z-index: 2;
+	height: 0;
+	margin: 6px 0;
+	border-top: 2px dashed color-mix(in srgb, var(--kb-fg) 28%, transparent);
+	pointer-events: none;
 }
 
 .kb-edges {
@@ -84,18 +259,33 @@ type: text/vnd.tiddlywiki
 	position: sticky;
 	top: 0;
 	z-index: 3;
-	background: var(--kb-header-bg);
-	border-radius: 6px;
 }
 
 .kb-header {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	padding: 6px 8px;
+	gap: 8px;
+	padding: 12px 12px 8px;
 	font-weight: 600;
-	min-height: 22px;
+	min-height: 28px;
 }
+
+.kb-column-header {
+	justify-content: center;
+	font-size: 1.25em;
+	color: color-mix(in srgb, var(--kb-col) 82%, var(--kb-fg));
+	fill: color-mix(in srgb, var(--kb-col) 82%, var(--kb-fg));
+	background: color-mix(in srgb, var(--kb-col) 15%, var(--kb-bg));
+	border-radius: 16px 16px 0 0;
+}
+.kb-column-header.kb-none {
+	background: var(--kb-bg);
+	color: var(--kb-muted);
+	font-size: 1em;
+}
+
+.kb-header-icon { display: inline-flex; }
+.kb-header-icon svg { width: 1.1em; height: 1.1em; }
 
 .kb-corner {
 	left: 0;
@@ -109,8 +299,9 @@ type: text/vnd.tiddlywiki
 	top: auto;
 	z-index: 3;
 	align-items: flex-start;
-	writing-mode: horizontal-tb;
 	max-width: 180px;
+	padding: 10px 12px 10px 4px;
+	background: var(--kb-bg);
 }
 
 .kb-header.kb-none .kb-header-label {
@@ -133,13 +324,12 @@ type: text/vnd.tiddlywiki
 	font-weight: normal;
 	font-size: 12px;
 	color: var(--kb-muted);
-	background: var(--kb-cell-bg);
+	background: color-mix(in srgb, var(--kb-card-bg) 70%, transparent);
 	border-radius: 10px;
 	padding: 0 7px;
 }
 
 .kb-header-tools {
-	margin-left: auto;
 	display: flex;
 	gap: 1px;
 	opacity: 0;
@@ -150,6 +340,23 @@ type: text/vnd.tiddlywiki
 .kb-header:focus-within .kb-header-tools {
 	opacity: 1;
 }
+
+.kb-header-add {
+	flex: none;
+	width: 26px;
+	height: 26px;
+	border: none;
+	border-radius: 50%;
+	background: var(--kb-col);
+	color: #fff;
+	font-size: 18px;
+	line-height: 26px;
+	padding: 0;
+	cursor: pointer;
+	opacity: .85;
+}
+.kb-header-add:hover { opacity: 1; }
+.kb-column-header .kb-header-tools { position: absolute; left: 6px; top: 6px; }
 
 .kb-tool, .kb-card-remove {
 	border: none;
@@ -218,13 +425,12 @@ type: text/vnd.tiddlywiki
 
 .kb-cell {
 	position: relative;
+	z-index: 1;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	padding: 8px;
+	padding: 8px 10px;
 	min-height: 60px;
-	background: var(--kb-cell-bg);
-	border-radius: 6px;
 }
 
 .kb-filler {
@@ -234,11 +440,11 @@ type: text/vnd.tiddlywiki
 .kb-card {
 	position: relative;
 	background: var(--kb-card-bg);
-	border: 1px solid var(--kb-border);
+	border: 1px solid color-mix(in srgb, var(--kb-border) 70%, transparent);
 	border-left: 4px solid var(--kb-card-color, var(--kb-border));
-	border-radius: 6px;
-	padding: 6px 8px;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+	border-radius: 8px;
+	padding: 8px 10px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
 	cursor: grab;
 	touch-action: none;
 	-webkit-user-select: none;
@@ -262,8 +468,34 @@ type: text/vnd.tiddlywiki
 }
 
 .kb-card-title {
+	display: flex;
+	align-items: flex-start;
+	gap: 4px;
 	font-weight: 600;
 	padding-right: 16px;
+}
+.kb-card-label { flex: 1; min-width: 0; }
+.kb-card-toggle {
+	flex: none;
+	border: none;
+	background: transparent;
+	color: var(--kb-muted);
+	cursor: pointer;
+	padding: 0 4px;
+	font-size: 14px;
+	line-height: 20px;
+	border-radius: 4px;
+}
+.kb-card-toggle:hover { background: var(--kb-header-bg); color: var(--kb-fg); }
+.kb-card-collapsible .kb-card-title { padding-right: 18px; }
+.kb-card-open.kb-card-collapsible .kb-card-toggle { color: var(--kb-accent); }
+.kb-card-compact { padding: 4px 8px; }
+.kb-card-compact .kb-card-label {
+	font-weight: 500;
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .kb-card-body {
@@ -327,7 +559,7 @@ type: text/vnd.tiddlywiki
 }
 
 .kb-add-card:hover {
-	background: var(--kb-header-bg);
+	background: color-mix(in srgb, var(--kb-card-bg) 60%, transparent);
 	color: var(--kb-fg);
 }
 
@@ -367,4 +599,130 @@ type: text/vnd.tiddlywiki
 @keyframes kb-flash {
 	0% { box-shadow: 0 0 0 4px var(--kb-accent); }
 	100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/*** Card viewer ***/
+
+.kb-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 10001;
+	height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(10, 10, 14, .55);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	animation: kb-fade .15s ease;
+}
+
+@keyframes kb-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.kb-modal-sheet {
+	position: relative;
+	box-sizing: border-box;
+	width: min(960px, 100vw);
+	/* As tall as the tiddler needs, up to the whole screen. */
+	max-height: 100vh;
+	overflow-y: auto;
+	border-radius: 14px;
+	background: <<colour tiddler-background>>;
+	color: <<colour foreground>>;
+	box-shadow: 0 0 60px rgba(0,0,0,.35);
+	padding: 56px clamp(18px, 6vw, 72px) 44px;
+	outline: none;
+}
+.kb-modal-editing .kb-modal-sheet { height: 100vh; }
+@media (max-width: 960px), (max-height: 600px) {
+	.kb-modal-sheet { border-radius: 0; }
+}
+
+.kb-modal-controls {
+	position: sticky;
+	top: -40px;
+	float: right;
+	margin: -40px calc(-1 * clamp(10px, 4vw, 56px)) 0 0;
+	display: flex;
+	gap: 6px;
+	z-index: 2;
+	opacity: 0;
+	transition: opacity .15s ease;
+}
+
+.kb-modal-sheet:hover .kb-modal-controls,
+.kb-modal-controls:focus-within,
+.kb-modal-editing .kb-modal-controls { opacity: 1; }
+
+@media (hover: none) {
+	.kb-modal-controls { opacity: 1; }
+}
+
+.kb-modal-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 36px;
+	padding: 0 12px;
+	border: 1px solid <<colour tiddler-border>>;
+	border-radius: 18px;
+	background: <<colour tiddler-background>>;
+	color: <<colour foreground>>;
+	box-shadow: 0 2px 10px rgba(0,0,0,.12);
+	cursor: pointer;
+	font-size: 14px;
+}
+.kb-modal-btn:hover { border-color: <<colour primary>>; color: <<colour primary>>; }
+.kb-modal-btn .kb-icon { width: 17px; height: 17px; }
+
+.kb-modal-header { margin-bottom: 1em; }
+.kb-modal-icon { display: inline-block; vertical-align: middle; margin-right: .4em; }
+.kb-modal-icon svg, .kb-modal-icon img { width: 1.6em; height: 1.6em; }
+.kb-modal-title { display: inline; margin: 0; font-size: 2.2em; line-height: 1.2; overflow-wrap: anywhere; }
+.kb-modal-subtitle { color: <<colour muted-foreground>>; margin-top: .3em; }
+.kb-modal-body { font-size: 1.1em; line-height: 1.6; }
+.kb-modal-body img { max-width: 100%; height: auto; }
+.kb-modal-missing { color: <<colour muted-foreground>>; font-style: italic; }
+
+.kb-modal-edit {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	height: calc(100% - 4em);
+}
+
+.kb-modal-editor {
+	width: 100%;
+	min-height: 60vh;
+	flex: 1;
+	box-sizing: border-box;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 15px;
+	line-height: 1.5;
+	padding: 12px;
+	border: 1px solid <<colour tiddler-border>>;
+	border-radius: 8px;
+	resize: vertical;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.kb-modal { animation: none; }
+}
+
+.kb-modal-place {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: -30px 0 18px;
+	font-size: 13px;
+}
+.kb-place-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.kb-place-sep { color: <<colour muted-foreground>>; }
+.kb-place-select {
+	padding: 3px 6px;
+	border: 1px solid <<colour tiddler-border>>;
+	border-radius: 6px;
+	background: <<colour tiddler-background>>;
+	color: <<colour foreground>>;
+	font: inherit;
 }

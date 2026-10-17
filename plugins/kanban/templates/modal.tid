@@ -1,0 +1,25 @@
+title: $:/plugins/lasjoh-toho/kanban/templates/modal
+
+\whitespace trim
+<div class="kb-modal-header">
+	<$list filter="[<currentTiddler>get[icon]]" variable="icon">
+		<span class="kb-modal-icon"><$transclude $tiddler=<<icon>> /></span>
+	</$list>
+	<h1 class="kb-modal-title"><$view field="caption"><$view field="title" /></$view></h1>
+	<%if [<currentTiddler>has[caption]] %>
+		<div class="kb-modal-subtitle"><$text text=<<currentTiddler>> /></div>
+	<%endif%>
+</div>
+<%if [<kanban-editing>match[yes]] %>
+	<div class="kb-modal-edit">
+		<$transclude $tiddler="$:/core/ui/EditTemplate/tags" />
+		<$edit-text tiddler=<<currentTiddler>> tag="textarea" class="tc-edit-texteditor kb-modal-editor" placeholder="Type the text for this tiddler" autoHeight="no" focus="yes" />
+	</div>
+<%elseif [<currentTiddler>is[missing]!is[shadow]] %>
+	<div class="kb-modal-missing">This tiddler does not exist yet. Use <em>Edit</em> to write it.</div>
+<%else%>
+	<$transclude $tiddler="$:/core/ui/ViewTemplate/tags" />
+	<div class="kb-modal-body tc-tiddler-body">
+		<$transclude $tiddler="$:/core/ui/ViewTemplate/body" />
+	</div>
+<%endif%>

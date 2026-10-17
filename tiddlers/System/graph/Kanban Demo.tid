@@ -1,5 +1,6 @@
 title: $:/graph/Kanban Demo
 filter: [tag[Task]]
-graph.graph: {"columns":"[[To do]] Doing Review Done","laneField":"owner","lanes":"Jo Kim","fields":"title text"}
+graph.graph: {"columns":"[[To do]] Doing Review Done","laneField":"owner","lanes":"Jo Kim","fields":"title text","projects":"Release Code Docs"}
 kanban: [[Translate the readme]] [[Publish the release]] [[Fix the drag preview]] [[Write the changelog]] [[Review the tests]] [[Plan the release]]
+kanban-columns: {"To do":{"icon":"$:/core/images/list-bullet"},"Doing":{"label":"In progress","icon":"$:/core/images/options-button","view":"collapsible"},"Review":{"icon":"$:/core/images/preview-open"},"Done":{"icon":"$:/core/images/done-button","view":"compact"}}
 template: $:/plugins/lasjoh-toho/kanban/templates/kanban
