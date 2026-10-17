@@ -165,4 +165,40 @@ it("keeps the order in the store tiddler", function() {
 	expect(e.order).toEqual(["B", "A"]);
 });
 
+it("keeps the look of each column", function() {
+	var styles = Model.parseStyles('{"Doing":{"label":"In progress","color":"#e92727","view":"compact","bad":1},"X":{"view":"huge"},"Y":5}');
+	expect(styles.Doing).toEqual({label: "In progress", color: "#e92727", view: "compact"});
+	expect(styles.X).toBeUndefined();
+	expect(styles.Y).toBeUndefined();
+	expect(Model.parseStyles("not json")).toEqual(Object.create(null));
+	styles = Model.patchStyle(styles, "Doing", {color: "", fields: "", icon: "$:/core/images/done-button"});
+	expect(styles.Doing).toEqual({label: "In progress", view: "compact", fields: "", icon: "$:/core/images/done-button"});
+	styles = Model.renameStyle(styles, "Doing", "Busy");
+	expect(styles.Doing).toBeUndefined();
+	expect(styles.Busy.label).toBe("In progress");
+	expect(Model.stringifyStyles(Model.patchStyle(styles, "Busy", {label: null, view: null, fields: null, icon: null}))).toBe("");
+	var style = Model.columnStyle(styles, "Busy", 1);
+	expect(style.color).toBe(Model.PALETTE[1]);
+	expect(style.view).toBe("compact");
+	expect(Model.columnStyle(styles, Model.NONE, 0).color).toBe("");
+	expect(Model.columnStyle(styles, "Other", Model.PALETTE.length).view).toBe("full");
+});
+
+it("knows which project the board shows", function() {
+	expect(Model.projectFilter("Project A")).toBe("[tag[Project A]]");
+	expect(Model.activeProject(" [tag[Web]] ", ["App", "Web"])).toBe("Web");
+	expect(Model.activeProject("[tag[Web]tag[App]]", ["App", "Web"])).toBe(null);
+	expect(Model.activeProject("", ["App"])).toBe(null);
+});
+
+it("renames the look of a renamed column", function() {
+	var wiki = new $tw.Wiki();
+	wiki.addTiddlers([{title: "Board", "graph.graph": '{"columns":"Doing"}', "kanban-columns": '{"Doing":{"color":"#000000"}}'}]);
+	var e = engine(wiki, {store: "Board", columns: "Doing"}, []);
+	e.loadStyles();
+	e.layout = e.computeLayout();
+	e.commitEditing({kind: "column", value: "Doing"}, "Busy");
+	expect(JSON.parse(wiki.getTiddler("Board").fields["kanban-columns"])).toEqual({Busy: {color: "#000000"}});
+});
+
 });

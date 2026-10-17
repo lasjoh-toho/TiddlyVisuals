@@ -1,0 +1,9 @@
+created: 20261017120000000
+
+Kanban 0.2, a new look, borrowed from a colorful to-do board:
+
+* Every column is a colored surface with an icon, a display name, its card count and a ''+'' for new cards. Swimlanes are only divided by dashed lines.
+* Columns can be set up one by one: color, icon, display name, which fields their cards show, and how cards look (full, collapsible with a ↕ toggle, or titles only).
+* Cards open in a viewer that can grow to the full height of the window, with Edit and menus to move the card to another column or swimlane.
+* A board filter and project buttons let several projects (for example tags) share one board; new cards get the project shown. A search box narrows the cards.
+* The board can be shown on the whole screen.

@@ -32,6 +32,8 @@ exports.properties = {
 		cardTemplate: {type: "string", description: "Tiddler used to render card bodies"},
 		columnWidth: {type: "number", min: 120, default: 260, description: "Width of a column"},
 		editable: {type: "boolean", default: true, description: "Allow moving cards and editing columns and swimlanes"},
+		boardFilter: {type: "string", description: "Filter run the cards must pass, e.g. [tag[Project A]] to show one project"},
+		projects: {type: "string", description: "Tags offered as project buttons above the board (title list)"},
 		zoom: {type: "boolean", default: true},
 		focus: {type: "actions"},
 		blur: {type: "actions"},
@@ -61,8 +63,19 @@ exports.properties = {
 exports.messages = {
 	"graph-center-node": {
 		tiddler: {type: "string"}
+	},
+	"graph-kanban-open": {
+		tiddler: {type: "string"}
 	}
 };
+
+// Fold in the other parts of the engine.
+["./lib/ui.js", "./lib/modal.js"].forEach(function(path) {
+	var methods = require(path).methods;
+	for (var name in methods) {
+		exports[name] = methods[name];
+	}
+});
 
 var TEMPLATE = "$:/plugins/lasjoh-toho/kanban/templates/card";
 var NONE = Model.NONE;
@@ -86,6 +99,10 @@ exports.init = function(element, objects, options) {
 	this.order = [];
 	this.zoom = 1;
 	this.editing = null;
+	this.styles = Object.create(null);
+	this.expanded = Object.create(null);
+	this.cardColumn = Object.create(null);
+	this.search = "";
 	this.buildDom();
 	this.onWikiChange = this.handleWikiChange.bind(this);
 	this.wiki.addEventListener("change", this.onWikiChange);
@@ -102,7 +119,10 @@ exports.destroy = function() {
 	}
 	this.destroyed = true;
 	this.endDrag(false);
+	this.closeModal && this.closeModal();
+	this.closePopover && this.closePopover();
 	this.wiki.removeEventListener("change", this.onWikiChange);
+	this.onFullscreenChange && this.document.removeEventListener("fullscreenchange", this.onFullscreenChange);
 	for (var id in this.cards) {
 		this.removeCard(id);
 	}
@@ -125,6 +145,7 @@ exports.buildDom = function() {
 	this.board.appendChild(this.grid);
 	this.board.appendChild(this.edgeLayer);
 	this.scroller.appendChild(this.board);
+	this.buildToolbar();
 	this.root.appendChild(this.scroller);
 	// Elements already in the graph element (overlays rendered by TW5-Graph)
 	// must stay, and stay after ours so they overlay the board.
@@ -221,6 +242,9 @@ exports.handleMessage = function(message, params) {
 	case "graph-center-node":
 		this.showCard(params.tiddler);
 		break;
+	case "graph-kanban-open":
+		(params.tiddler || message.param) && this.openModal(params.tiddler || message.param);
+		break;
 	}
 };
 
@@ -238,6 +262,27 @@ exports.readOrderText = function() {
 exports.loadOrder = function() {
 	this.orderText = this.readOrderText();
 	this.order = Model.parseList(this.orderText);
+	this.loadStyles();
+};
+
+var STYLE_FIELD = "kanban-columns";
+
+exports.loadStyles = function() {
+	var tiddler = this.graph.store && this.wiki.getTiddler(this.graph.store);
+	this.stylesText = tiddler ? tiddler.getFieldString(STYLE_FIELD) : "";
+	this.styles = Model.parseStyles(this.stylesText);
+};
+
+exports.saveStyles = function(styles) {
+	this.styles = styles;
+	var text = Model.stringifyStyles(styles);
+	this.stylesText = text;
+	if (this.graph.store) {
+		var fields = {};
+		fields[STYLE_FIELD] = text || undefined;
+		this.updateTiddler(this.graph.store, fields);
+	}
+	this.scheduleRender();
 };
 
 exports.saveOrder = function() {
@@ -298,12 +343,22 @@ exports.handleWikiChange = function(changes) {
 			this.orderText = text;
 			this.order = Model.parseList(text);
 		}
+		var store = this.wiki.getTiddler(this.graph.store);
+		if ((store ? store.getFieldString(STYLE_FIELD) : "") !== this.stylesText) {
+			this.loadStyles();
+		}
 		relevant = true;
 	}
 	for (var id in this.cards) {
 		var card = this.cards[id];
 		card.widget && card.widget.refresh(changes);
 		relevant = relevant || !!changes[id];
+	}
+	this.refreshModal && this.refreshModal(changes);
+	if (this.graph.boardFilter || this.search) {
+		// Whether cards pass the filter may have changed.
+		this.computeMatches();
+		relevant = true;
 	}
 	if (relevant) {
 		this.scheduleRender();
@@ -373,22 +428,47 @@ exports.syncCard = function(id) {
 	if (!card) {
 		card = this.cards[id] = this.makeCard(id);
 	}
-	var fields = this.cardFields(id);
 	card.el.style.setProperty("--kb-card-color", node.color || "");
 	card.el.classList.toggle("kb-hidden", !!node.hidden);
-	card.title.textContent = node.label || id;
-	card.title.style.display = fields.indexOf("title") >= 0 ? "" : "none";
+	card.label.textContent = node.label || id;
 	card.remove.style.display = (this.isEditable() && node.delete) ? "" : "none";
-	var template = node.template || this.graph.cardTemplate || TEMPLATE;
+	if (this.cardColumn[id] !== undefined) {
+		this.renderCardContent(id, this.cardColumn[id]);
+	}
+};
+
+/*
+Shows a card the way its column wants: which fields, and as a full card,
+a foldable one (title with a toggle) or a compact title-only one.
+*/
+exports.renderCardContent = function(id, column) {
+	var card = this.cards[id], node = this.nodes[id];
+	if (!card || !node) {
+		return;
+	}
+	this.cardColumn[id] = column;
+	var style = this.styleOf(column);
+	var fields = style.fields !== undefined ? Model.parseList(style.fields) : this.cardFields(id);
+	var view = style.view;
 	var others = fields.filter(function(f) { return f !== "title"; });
-	var key = template + "\n" + others.join("\n");
+	var showTitle = fields.indexOf("title") >= 0 || view !== "full" || others.length === 0;
+	card.title.style.display = showTitle ? "" : "none";
+	card.el.classList.toggle("kb-card-compact", view === "compact");
+	card.el.classList.toggle("kb-card-collapsible", view === "collapsible" && others.length > 0);
+	var open = view === "full" || (view === "collapsible" && !!this.expanded[id]);
+	card.el.classList.toggle("kb-card-open", open && others.length > 0);
+	card.toggle.style.display = view === "collapsible" && others.length ? "" : "none";
+	card.toggle.setAttribute("aria-expanded", open ? "true" : "false");
+	var template = node.template || this.graph.cardTemplate || TEMPLATE;
+	var shown = open && view !== "compact" ? others : [];
+	var key = template + "\n" + shown.join("\n");
 	if (key !== card.key) {
 		card.key = key;
 		if (card.widget) {
 			clear(card.body);
 			card.widget = null;
 		}
-		if (others.length) {
+		if (shown.length) {
 			card.widget = this.wiki.makeTranscludeWidget(template, {
 				document: this.document,
 				parentWidget: this.parentWidget,
@@ -396,19 +476,27 @@ exports.syncCard = function(id) {
 				mode: "block",
 				variables: {
 					currentTiddler: id,
-					"kanban-fields": Model.stringifyList(others)
+					"kanban-fields": Model.stringifyList(shown)
 				}
 			});
 			card.widget.render(card.body, null);
 		}
-		card.body.style.display = others.length ? "" : "none";
+		card.body.style.display = shown.length ? "" : "none";
 	}
 };
 
 exports.makeCard = function(id) {
 	var doc = this.document, self = this;
 	var card = {id: id};
-	card.title = el(doc, "div", {"class": "kb-card-title"});
+	card.label = el(doc, "span", {"class": "kb-card-label"});
+	card.toggle = el(doc, "button", {"class": "kb-card-toggle", type: "button", title: "Show / hide details", "aria-label": "Show or hide details"}, ["↕"]);
+	card.toggle.addEventListener("click", function(event) {
+		event.stopPropagation();
+		self.expanded[id] = !self.expanded[id];
+		self.renderCardContent(id, self.cardColumn[id]);
+		self.scheduleEdges();
+	});
+	card.title = el(doc, "div", {"class": "kb-card-title"}, [card.label, card.toggle]);
 	card.body = el(doc, "div", {"class": "kb-card-body"});
 	card.remove = el(doc, "button", {"class": "kb-card-remove", type: "button", title: "Remove from board", "aria-label": "Remove from board"}, ["×"]);
 	card.remove.addEventListener("click", function(event) {
@@ -430,12 +518,13 @@ exports.removeCard = function(id) {
 		clear(card.body);
 		remove(card.el);
 		delete this.cards[id];
+		delete this.cardColumn[id];
 	}
 };
 
 exports.activateCard = function(id, event) {
 	if (!this.fire("nodes", id, "actions", event)) {
-		this.navigate(id, event);
+		this.openModal(id);
 	}
 };
 
@@ -461,7 +550,9 @@ exports.laneField = function() {
 
 exports.computeLayout = function() {
 	var self = this;
-	var ids = Object.keys(this.nodes).filter(function(id) { return !self.nodes[id].hidden; });
+	var ids = Object.keys(this.nodes).filter(function(id) {
+		return !self.nodes[id].hidden && (!self.cardShown || self.cardShown(id));
+	});
 	this.order = Model.normalizeOrder(this.order, Object.keys(this.nodes));
 	ids = Model.sortByOrder(ids, this.order);
 	var columnField = this.columnField(), laneField = this.laneField();
@@ -507,6 +598,11 @@ exports.scheduleEdges = function() {
 	});
 };
 
+/*
+The board is one grid: a header row, then the swimlanes, separated only by
+dashed lines. Behind each column lies one tinted surface from its header
+to the last swimlane, so a column reads as one area.
+*/
 exports.renderBoard = function() {
 	var doc = this.document, self = this;
 	var layout = this.layout = this.computeLayout();
@@ -516,89 +612,143 @@ exports.renderBoard = function() {
 		doc.activeElement.getAttribute("data-kb-id") : null;
 	// Card elements are moved, not rebuilt, so their content stays alive.
 	clear(this.grid);
-	var columnCount = layout.columns.length + (configure ? 1 : 0);
+	var offset = hasLanes ? 1 : 0;
 	this.grid.style.gridTemplateColumns = (hasLanes ? "max-content " : "") +
-		"repeat(" + columnCount + ", var(--kb-column-width))";
+		"repeat(" + layout.columns.length + ", var(--kb-column-width))" + (configure ? " max-content" : "");
+	var place = function(node, row, column, columnEnd) {
+		node.style.gridRow = String(row);
+		node.style.gridColumn = columnEnd ? column + " / " + columnEnd : String(column);
+		self.grid.appendChild(node);
+		return node;
+	};
+	var surfaces = [];
+	layout.columns.forEach(function(column, ci) {
+		var style = self.styleOf(column);
+		var surface = el(doc, "div", {"class": "kb-surface" + (column === NONE ? " kb-none" : "")});
+		surface.style.setProperty("--kb-col", style.color || "var(--kb-muted)");
+		surfaces.push(place(surface, 1, offset + ci + 1));
+	});
 	// Header row
 	if (hasLanes) {
-		this.grid.appendChild(el(doc, "div", {"class": "kb-corner"}));
+		place(el(doc, "div", {"class": "kb-corner"}), 1, 1);
 	}
-	layout.columns.forEach(function(column) {
+	layout.columns.forEach(function(column, ci) {
 		var count = 0;
 		layout.lanes.forEach(function(lane) {
 			count += (layout.cells[Model.cellKey(column, lane)] || []).length;
 		});
-		self.grid.appendChild(self.renderHeader("column", column, count, layout.columns));
+		place(self.renderHeader("column", column, count, layout.columns, ci), 1, offset + ci + 1);
 	});
 	if (configure) {
-		this.grid.appendChild(this.renderAdder("column"));
+		place(this.renderAdder("column"), 1, offset + layout.columns.length + 1);
 	}
 	// Swimlanes
-	layout.lanes.forEach(function(lane) {
+	var row = 2;
+	layout.lanes.forEach(function(lane, li) {
+		if (li > 0) {
+			place(el(doc, "div", {"class": "kb-lane-separator"}), row, 1, -1);
+			row++;
+		}
 		if (hasLanes) {
 			var count = 0;
 			layout.columns.forEach(function(column) {
 				count += (layout.cells[Model.cellKey(column, lane)] || []).length;
 			});
-			self.grid.appendChild(self.renderHeader("lane", lane, count, layout.lanes));
+			place(self.renderHeader("lane", lane, count, layout.lanes), row, 1);
 		}
 		layout.columns.forEach(function(column, ci) {
 			var ids = layout.cells[Model.cellKey(column, lane)] || [];
-			self.grid.appendChild(self.renderCell(column, lane, ids));
+			place(self.renderCell(column, lane, ids), row, offset + ci + 1);
 		});
-		if (configure) {
-			self.grid.appendChild(el(doc, "div", {"class": "kb-filler"}));
-		}
+		row++;
+	});
+	surfaces.forEach(function(surface) {
+		surface.style.gridRow = "1 / " + row;
 	});
 	if (hasLanes && configure) {
-		this.grid.appendChild(this.renderAdder("lane"));
+		place(this.renderAdder("lane"), row, 1);
 	}
 	if (focused && this.cards[focused]) {
 		this.cards[focused].el.focus({preventScroll: true});
 	}
+	this.updateToolbar && this.updateToolbar();
 	this.renderEdges();
+};
+
+exports.styleOf = function(column) {
+	var index = this.layout ? this.layout.columns.filter(function(c) { return c !== NONE; }).indexOf(column) : 0;
+	return Model.columnStyle(this.styles || {}, column, Math.max(0, index));
 };
 
 exports.valueLabel = function(kind, value) {
 	if (value !== NONE) {
+		if (kind === "column") {
+			var label = this.styleOf(value).label;
+			return label || value;
+		}
 		return value;
 	}
 	var field = kind === "column" ? this.columnField() : this.laneField();
 	return field ? "No " + field : "Cards";
 };
 
-exports.renderHeader = function(kind, value, count, values) {
+exports.renderHeader = function(kind, value, count, values, columnIndex) {
 	var doc = this.document, self = this;
 	var header = el(doc, "div", {
 		"class": "kb-header kb-" + kind + "-header" + (value === NONE ? " kb-none" : ""),
 		"data-kb-kind": kind,
 		"data-kb-value": value
-	}, [
-		el(doc, "span", {"class": "kb-header-label", text: this.valueLabel(kind, value)}),
-		el(doc, "span", {"class": "kb-header-count", text: String(count)})
-	]);
+	});
+	if (kind === "column") {
+		var style = this.styleOf(value);
+		header.style.setProperty("--kb-col", style.color || "var(--kb-muted)");
+		if (style.icon) {
+			var icon = el(doc, "span", {"class": "kb-header-icon"});
+			icon.innerHTML = this.wiki.renderTiddler("text/html", style.icon);
+			header.appendChild(icon);
+		}
+	}
+	header.appendChild(el(doc, "span", {"class": "kb-header-label", text: this.valueLabel(kind, value), title: value || ""}));
+	header.appendChild(el(doc, "span", {"class": "kb-header-count", text: String(count)}));
+	var tools = el(doc, "span", {"class": "kb-header-tools"});
 	if (this.canConfigure() && value !== NONE) {
 		var list = values.filter(function(v) { return v !== NONE; });
 		var index = list.indexOf(value);
 		var back = kind === "column" ? "◂" : "▴", forward = kind === "column" ? "▸" : "▾";
-		var tools = el(doc, "span", {"class": "kb-header-tools"}, [
-			index > 0 && toolButton(doc, back, "Move " + (kind === "column" ? "left" : "up"), function() {
-				self.writeValues(kind, Model.moveValue(list, value, -1));
-			}),
-			index < list.length - 1 && toolButton(doc, forward, "Move " + (kind === "column" ? "right" : "down"), function() {
-				self.writeValues(kind, Model.moveValue(list, value, 1));
-			}),
-			toolButton(doc, "✎", "Rename", function() {
+		index > 0 && tools.appendChild(toolButton(doc, back, "Move " + (kind === "column" ? "left" : "up"), function() {
+			self.writeValues(kind, Model.moveValue(list, value, -1));
+		}));
+		index < list.length - 1 && tools.appendChild(toolButton(doc, forward, "Move " + (kind === "column" ? "right" : "down"), function() {
+			self.writeValues(kind, Model.moveValue(list, value, 1));
+		}));
+		if (kind === "column") {
+			tools.appendChild(toolButton(doc, "⚙", "Column settings: name, color, icon, card view, fields", function(event) {
+				self.openColumnSettings(value, header);
+			}));
+		} else {
+			tools.appendChild(toolButton(doc, "✎", "Rename", function() {
 				self.startEditing({kind: kind, value: value});
-			}),
-			toolButton(doc, "×", "Remove " + (kind === "column" ? "column" : "swimlane") + " (its cards keep their value)", function() {
+			}));
+			tools.appendChild(toolButton(doc, "×", "Remove swimlane (its cards keep their value)", function() {
 				self.writeValues(kind, Model.removeValue(list, value));
-			})
-		]);
-		header.appendChild(tools);
+			}));
+		}
 		header.addEventListener("dblclick", function() {
-			self.startEditing({kind: kind, value: value});
+			if (kind === "column") {
+				self.openColumnSettings(value, header);
+			} else {
+				self.startEditing({kind: kind, value: value});
+			}
 		});
+	}
+	header.appendChild(tools);
+	if (kind === "column" && this.isEditable() && this.can("graph", null, "drop")) {
+		var add = el(doc, "button", {"class": "kb-header-add", type: "button", title: "Add a card to this column", "aria-label": "Add a card"}, ["+"]);
+		add.addEventListener("click", function() {
+			var lane = self.layout && self.layout.lanes.length ? self.layout.lanes[0] : NONE;
+			self.startEditing({kind: "card", column: value, lane: lane});
+		});
+		header.appendChild(add);
 	}
 	return header;
 };
@@ -626,6 +776,7 @@ exports.renderCell = function(column, lane, ids) {
 		var card = self.cards[id];
 		if (card) {
 			card.el.classList.remove("kb-dragging");
+			self.renderCardContent(id, column);
 			cell.appendChild(card.el);
 		}
 	});
@@ -741,10 +892,23 @@ exports.commitEditing = function(editing, text) {
 		}
 	}
 	this.writeValues(kind, Model.renameValue(list, editing.value, text));
+	if (kind === "column" && this.styles && this.styles[editing.value]) {
+		this.saveStyles(Model.renameStyle(this.styles, editing.value, text));
+	}
 };
 
 exports.addCard = function(title, column, lane) {
 	this.assignCell(title, column, lane);
+	// Cards made while a project is shown belong to that project.
+	var project = this.currentProject && this.currentProject();
+	if (project) {
+		var tiddler = this.wiki.getTiddler(title);
+		var tags = (tiddler && tiddler.fields.tags || []).slice();
+		if (tags.indexOf(project) < 0) {
+			tags.push(project);
+			this.updateTiddler(title, {tags: tags});
+		}
+	}
 	if (!this.nodes[title]) {
 		this.order = this.order.filter(function(id) { return id !== title; });
 		this.order.push(title);

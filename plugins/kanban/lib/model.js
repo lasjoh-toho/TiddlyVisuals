@@ -283,6 +283,134 @@ exports.setProperty = function(json, name, value) {
 	return JSON.stringify(data);
 };
 
+/*** Column styles ***/
+
+/*
+How each column looks, kept as JSON in a field of the store tiddler
+(`kanban-columns`), keyed by the column's value:
+
+{ "Doing": { "label": "In progress", "color": "#e92727",
+             "icon": "$:/core/images/options-button",
+             "view": "collapsible", "fields": "title text" } }
+
+view:   "full" (default), "collapsible" (title with a toggle, like a
+        folded index card) or "compact" (title only)
+fields: which fields cards in this column show; missing = board default
+*/
+var VIEWS = {full: true, collapsible: true, compact: true};
+exports.VIEWS = ["full", "collapsible", "compact"];
+
+// Colors given to columns that have none of their own, in order.
+exports.PALETTE = ["#1c55ff", "#aad21e", "#ff8000", "#e92727", "#8925c5", "#03b0e2", "#e2a203", "#14a37f"];
+
+exports.parseStyles = function(text) {
+	var data;
+	try {
+		data = text ? JSON.parse(text) : {};
+	} catch (e) {
+		data = {};
+	}
+	var out = Object.create(null);
+	if (!data || typeof data !== "object" || Array.isArray(data)) {
+		return out;
+	}
+	for (var value in data) {
+		var entry = data[value], clean = {};
+		if (!entry || typeof entry !== "object") {
+			continue;
+		}
+		["label", "color", "icon", "fields"].forEach(function(key) {
+			if (typeof entry[key] === "string") {
+				clean[key] = entry[key];
+			}
+		});
+		if (VIEWS[entry.view]) {
+			clean.view = entry.view;
+		}
+		if (Object.keys(clean).length) {
+			out[value] = clean;
+		}
+	}
+	return out;
+};
+
+exports.stringifyStyles = function(styles) {
+	var out = {};
+	Object.keys(styles).sort().forEach(function(value) {
+		if (styles[value] && Object.keys(styles[value]).length) {
+			out[value] = styles[value];
+		}
+	});
+	return Object.keys(out).length ? JSON.stringify(out) : "";
+};
+
+/*
+Changes one column's style: keys of `patch` set to "" or null are
+removed. Returns the new styles object.
+*/
+exports.patchStyle = function(styles, value, patch) {
+	var out = exports.parseStyles(JSON.stringify(styles));
+	var entry = out[value] || {};
+	for (var key in patch) {
+		if (patch[key] === null || patch[key] === undefined || (patch[key] === "" && key !== "fields")) {
+			delete entry[key];
+		} else {
+			entry[key] = patch[key];
+		}
+	}
+	if (Object.keys(entry).length) {
+		out[value] = entry;
+	} else {
+		delete out[value];
+	}
+	return out;
+};
+
+exports.renameStyle = function(styles, from, to) {
+	var out = exports.parseStyles(JSON.stringify(styles));
+	if (out[from]) {
+		out[to] = out[from];
+		delete out[from];
+	}
+	return out;
+};
+
+/*
+The style a column is drawn with: its own settings over the defaults
+(a palette color by position, full cards).
+*/
+exports.columnStyle = function(styles, value, index) {
+	var own = styles[value] || {};
+	return {
+		label: own.label || "",
+		color: own.color || (value === NONE ? "" : exports.PALETTE[index % exports.PALETTE.length]),
+		icon: own.icon || "",
+		view: own.view || "full",
+		fields: own.fields
+	};
+};
+
+/*** Board filter and projects ***/
+
+/*
+The filter that selects a project, from its tag.
+*/
+exports.projectFilter = function(tag) {
+	return "[tag[" + tag + "]]";
+};
+
+/*
+Which project a board filter selects, if it is exactly a project filter.
+*/
+exports.activeProject = function(filter, projects) {
+	for (var i = 0; i < projects.length; i++) {
+		if ((filter || "").trim() === exports.projectFilter(projects[i])) {
+			return projects[i];
+		}
+	}
+	return null;
+};
+
 /*** Geometry for connections ***/
 
 exports.clipToRect = function(rect, tx, ty, margin) {
