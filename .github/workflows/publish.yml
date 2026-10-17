@@ -1,0 +1,36 @@
+name: Publish release
+
+# Tags the default branch with the version in package.json (or the one
+# given) and starts "Build Pages and Bundle" on that tag, which deploys
+# the demo site and creates the release with the plugin bundles.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish, e.g. 1.13.0 (blank = package.json)
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+    - name: Tag and start the release build
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        version: ${{ inputs.version }}
+      run: |
+        version="${version:-$(node -p "require('./package.json').version")}"
+        tag="v${version#v}"
+        if git ls-remote --exit-code --tags origin "refs/tags/${tag}" > /dev/null; then
+          echo "::error::${tag} exists already"
+          exit 1
+        fi
+        git tag "${tag}"
+        git push origin "${tag}"
+        gh workflow run release.yml --ref "${tag}"
+        echo "Started the release build for ${tag}"
