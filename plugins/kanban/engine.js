@@ -10,7 +10,8 @@ A card's column and swimlane come from fields of its own tiddler (by
 default `status`, and no swimlanes), so dragging a card to another cell
 rewrites those fields. The lists of columns and swimlanes are graph
 properties and can be edited right on the board. Edges are drawn as
-arrows between the cards.
+arrows between the cards; dragging a card's dot onto another card adds
+one, and a clicked edge can be removed.
 
 \*/
 
@@ -37,7 +38,8 @@ exports.properties = {
 		zoom: {type: "boolean", default: true},
 		focus: {type: "actions"},
 		blur: {type: "actions"},
-		drop: {type: "actions", variables: ["dropTiddler"]}
+		drop: {type: "actions", variables: ["dropTiddler"]},
+		addEdge: {type: "actions", variables: ["fromTiddler", "toTiddler"]}
 	},
 	nodes: {
 		label: {type: "string"},
@@ -56,7 +58,9 @@ exports.properties = {
 		width: {type: "number", min: 0, default: 1.5, increment: 0.5},
 		arrows: {type: "enum", default: "to", values: ["no", "to", "from", "middle"], hidden: ["no"], multiple: true},
 		stroke: {type: "enum", values: ["solid", "dashed", "dotted"], default: "solid"},
-		hidden: {type: "boolean", default: false}
+		hidden: {type: "boolean", default: false},
+		actions: {type: "actions"},
+		delete: {type: "actions", variables: []}
 	}
 };
 
@@ -163,6 +167,8 @@ exports.buildDom = function() {
 	on(this.grid, "drop", this.handleDrop);
 	on(this.grid, "pointerover", this.handlePointerOver);
 	on(this.grid, "pointerout", this.handlePointerOut);
+	on(this.edgeLayer, "pointerdown", this.handleEdgePointerDown);
+	on(this.root, "keydown", this.handleKeyDown);
 	on(this.root, "focusin", function(event) {
 		if (!event.relatedTarget || !this.root.contains(event.relatedTarget)) {
 			this.fire("graph", null, "focus", event);
@@ -218,6 +224,9 @@ exports.applyChanges = function(objects) {
 		for (id in objects.edges) {
 			if (objects.edges[id] === null) {
 				delete this.edges[id];
+				if (this.selectedEdge === id) {
+					this.selectedEdge = null;
+				}
 			} else {
 				this.edges[id] = objects.edges[id];
 			}
@@ -458,6 +467,7 @@ exports.syncCard = function(id) {
 	card.el.classList.toggle("kb-hidden", !!node.hidden);
 	card.label.textContent = node.label || id;
 	card.remove.style.display = (this.isEditable() && node.delete) ? "" : "none";
+	card.connector.style.display = this.canConnect() ? "" : "none";
 	if (this.cardColumn[id] !== undefined) {
 		this.renderCardContent(id, this.cardColumn[id]);
 	}
@@ -529,7 +539,8 @@ exports.makeCard = function(id) {
 		event.stopPropagation();
 		self.fire("nodes", id, "delete", event);
 	});
-	card.el = el(doc, "div", {"class": "kb-card", "data-kb-id": id, tabindex: "-1"}, [card.remove, card.title, card.body]);
+	card.connector = el(doc, "div", {"class": "kb-card-connector", title: "Drag to another card to connect"});
+	card.el = el(doc, "div", {"class": "kb-card", "data-kb-id": id, tabindex: "-1"}, [card.remove, card.title, card.body, card.connector]);
 	card.el.addEventListener("keydown", function(event) {
 		if (event.key === "Enter" && event.target === card.el) {
 			self.activateCard(id, event);
@@ -992,8 +1003,13 @@ exports.handlePointerDown = function(event) {
 		this.document.addEventListener("pointercancel", this.onPointerUp);
 		return;
 	}
+	this.selectEdge(null);
 	var cardEl = closest(event.target, ".kb-card", this.grid);
 	if (!cardEl || closest(event.target, INTERACTIVE, cardEl)) {
+		return;
+	}
+	if (closest(event.target, ".kb-card-connector", cardEl)) {
+		this.beginConnect(event, cardEl.getAttribute("data-kb-id"));
 		return;
 	}
 	this.drag = {
@@ -1011,6 +1027,11 @@ exports.handlePointerDown = function(event) {
 exports.handlePointerMove = function(event) {
 	var drag = this.drag;
 	if (!drag) {
+		return;
+	}
+	if (drag.connect) {
+		event.preventDefault();
+		this.moveConnect(event);
 		return;
 	}
 	if (!drag.moving) {
@@ -1180,6 +1201,10 @@ exports.handlePointerUp = function(event) {
 	if (!drag) {
 		return;
 	}
+	if (drag.connect) {
+		this.endConnect(event);
+		return;
+	}
 	if (drag.moving) {
 		this.endDrag(event.type !== "pointercancel");
 	} else {
@@ -1339,18 +1364,155 @@ exports.renderEdges = function() {
 		if (!r1 || !r2) {
 			continue;
 		}
-		layer.appendChild(renderEdge(doc, edge, r1, r2));
+		var group = renderEdge(doc, edge, r1, r2, {
+			id: id,
+			clickable: this.isEditable() && (!!edge.delete || !!edge.actions),
+			selected: this.selectedEdge === id,
+			deletable: this.isEditable() && !!edge.delete
+		});
+		layer.appendChild(group);
+	}
+	if (this.drag && this.drag.connect) {
+		layer.appendChild(this.drag.line);
 	}
 };
 
-function renderEdge(doc, edge, r1, r2) {
+/*
+A card's dot can be dragged onto another card to connect the two; the
+graph's addEdge actions decide what that writes.
+*/
+exports.canConnect = function() {
+	return this.isEditable() && this.can("graph", null, "addEdge");
+};
+
+exports.boardPoint = function(event) {
+	var rect = this.board.getBoundingClientRect();
+	var scale = this.board.offsetWidth ? rect.width / this.board.offsetWidth : this.zoom;
+	return {x: (event.clientX - rect.left) / (scale || 1), y: (event.clientY - rect.top) / (scale || 1)};
+};
+
+exports.beginConnect = function(event, id) {
+	var r1 = this.cardRect(id);
+	if (!r1 || !this.canConnect()) {
+		return;
+	}
+	event.preventDefault();
+	this.selectEdge(null);
+	this.drag = {
+		connect: true,
+		id: id,
+		from: {x: r1.x + r1.w / 2, y: r1.y + r1.h / 2},
+		line: svg(this.document, "path", {"class": "kb-connect-line"})
+	};
+	this.cards[id].el.classList.add("kb-connect-source");
+	this.root.classList.add("kb-is-connecting");
+	this.edgeLayer.appendChild(this.drag.line);
+	this.document.addEventListener("pointermove", this.onPointerMove);
+	this.document.addEventListener("pointerup", this.onPointerUp);
+	this.document.addEventListener("pointercancel", this.onPointerUp);
+	this.moveConnect(event);
+};
+
+exports.connectTarget = function(event) {
+	var hit = this.document.elementFromPoint(event.clientX, event.clientY);
+	var cardEl = closest(hit, ".kb-card", this.grid);
+	var id = cardEl && cardEl.getAttribute("data-kb-id");
+	return id && id !== this.drag.id && this.cards[id] ? id : null;
+};
+
+exports.moveConnect = function(event) {
+	var drag = this.drag;
+	var to = this.connectTarget(event);
+	if (to !== drag.target) {
+		drag.target && this.cards[drag.target] && this.cards[drag.target].el.classList.remove("kb-connect-target");
+		drag.target = to;
+		to && this.cards[to].el.classList.add("kb-connect-target");
+	}
+	var end = this.boardPoint(event);
+	var r2 = to && this.cardRect(to);
+	var start = drag.from;
+	if (r2) {
+		end = Model.clipToRect(r2, start.x, start.y, 3);
+	}
+	drag.line.setAttribute("d", "M" + r(start.x) + " " + r(start.y) + "L" + r(end.x) + " " + r(end.y));
+	this.autoScroll(event.clientX, event.clientY);
+};
+
+exports.endConnect = function(event) {
+	var drag = this.drag;
+	var to = event.type === "pointerup" ? this.connectTarget(event) : null;
+	this.drag = null;
+	this.document.removeEventListener("pointermove", this.onPointerMove);
+	this.document.removeEventListener("pointerup", this.onPointerUp);
+	this.document.removeEventListener("pointercancel", this.onPointerUp);
+	remove(drag.line);
+	this.root.classList.remove("kb-is-connecting");
+	this.cards[drag.id] && this.cards[drag.id].el.classList.remove("kb-connect-source");
+	drag.target && this.cards[drag.target] && this.cards[drag.target].el.classList.remove("kb-connect-target");
+	if (to) {
+		this.fire("graph", null, "addEdge", event, {fromTiddler: drag.id, toTiddler: to});
+	}
+	this.scheduleRender();
+};
+
+/*
+A click on an edge selects it; a selected edge shows a button that removes
+it, and Delete or Backspace do the same.
+*/
+exports.handleEdgePointerDown = function(event) {
+	var hit = closest(event.target, "[data-kb-edge]", this.edgeLayer);
+	if (!hit || event.button !== 0) {
+		return;
+	}
+	event.preventDefault();
+	event.stopPropagation();
+	var id = hit.getAttribute("data-kb-edge");
+	if (closest(event.target, ".kb-edge-delete", this.edgeLayer)) {
+		this.selectEdge(null);
+		this.fire("edges", id, "delete", event);
+		return;
+	}
+	if (this.edges[id] && this.edges[id].delete) {
+		this.selectEdge(id);
+		this.root.focus({preventScroll: true});
+	} else {
+		this.fire("edges", id, "actions", event);
+	}
+};
+
+exports.selectEdge = function(id) {
+	if (this.selectedEdge !== id) {
+		this.selectedEdge = id;
+		this.renderEdges();
+	}
+};
+
+exports.handleKeyDown = function(event) {
+	var id = this.selectedEdge;
+	if (!id || closest(event.target, INTERACTIVE, this.root)) {
+		return;
+	}
+	if (event.key === "Delete" || event.key === "Backspace") {
+		event.preventDefault();
+		this.selectEdge(null);
+		this.fire("edges", id, "delete", event);
+	} else if (event.key === "Escape") {
+		this.selectEdge(null);
+	}
+};
+
+function renderEdge(doc, edge, r1, r2, opts) {
 	var c1 = {x: r1.x + r1.w / 2, y: r1.y + r1.h / 2};
 	var c2 = {x: r2.x + r2.w / 2, y: r2.y + r2.h / 2};
 	var s = Model.clipToRect(r1, c2.x, c2.y, 3);
 	var e = Model.clipToRect(r2, c1.x, c1.y, 3);
 	var width = edge.width !== undefined ? edge.width : 1.5;
-	var group = svg(doc, "g", {"class": "kb-edge"});
-	var line = svg(doc, "path", {"class": "kb-edge-line", d: "M" + r(s.x) + " " + r(s.y) + "L" + r(e.x) + " " + r(e.y)});
+	var d = "M" + r(s.x) + " " + r(s.y) + "L" + r(e.x) + " " + r(e.y);
+	var group = svg(doc, "g", {"class": "kb-edge" + (opts.clickable ? " kb-edge-clickable" : "") + (opts.selected ? " kb-selected" : ""), "data-kb-edge": opts.id});
+	if (opts.clickable) {
+		group.appendChild(svg(doc, "path", {"class": "kb-edge-hit", d: d}));
+	}
+	var line = svg(doc, "path", {"class": "kb-edge-line", d: d});
 	line.style.strokeWidth = width;
 	if (edge.color) {
 		line.style.stroke = edge.color;
@@ -1387,6 +1549,16 @@ function renderEdge(doc, edge, r1, r2) {
 		var text = svg(doc, "text", {"class": "kb-edge-label", x: r(mid.x), y: r(mid.y), "text-anchor": "middle", "dominant-baseline": "central"});
 		text.textContent = edge.label;
 		group.appendChild(text);
+	}
+	if (opts.selected && opts.deletable) {
+		var at = edge.label ? {x: mid.x, y: mid.y - 18} : mid;
+		var button = svg(doc, "g", {"class": "kb-edge-delete", transform: "translate(" + r(at.x) + " " + r(at.y) + ")"});
+		var title = svg(doc, "title", {});
+		title.textContent = "Remove connection";
+		button.appendChild(title);
+		button.appendChild(svg(doc, "circle", {r: 9}));
+		button.appendChild(svg(doc, "path", {d: "M-3.5 -3.5L3.5 3.5M3.5 -3.5L-3.5 3.5"}));
+		group.appendChild(button);
 	}
 	return group;
 }

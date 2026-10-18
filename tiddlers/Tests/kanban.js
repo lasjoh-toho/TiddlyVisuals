@@ -27,6 +27,25 @@ it("declares itself as a graph engine", function() {
 	expect(Kanban.properties.graph.columnField.default).toBe("status");
 	expect(Kanban.properties.graph.drop.variables).toEqual(["dropTiddler"]);
 	expect(Kanban.properties.nodes.delete.variables).toEqual([]);
+	expect(Kanban.properties.graph.addEdge.variables).toEqual(["fromTiddler", "toTiddler"]);
+	expect(Kanban.properties.edges.delete.variables).toEqual([]);
+});
+
+it("connects cards only when the graph can add edges", function() {
+	var e = engine(new $tw.Wiki(), {});
+	expect(e.canConnect()).toBe(false);
+	e.graph = {addEdge: "<$action-test/>"};
+	expect(e.canConnect()).toBe(true);
+	e.graph.editable = false;
+	expect(e.canConnect()).toBe(false);
+});
+
+it("fires addEdge with the two cards", function() {
+	var e = engine(new $tw.Wiki(), {addEdge: "x"}, ["A", "B"]);
+	var fired = [];
+	e.onevent = function(data, vars) { fired.push([data.type, data.objectType, vars]); };
+	expect(e.fire("graph", null, "addEdge", null, {fromTiddler: "A", toTiddler: "B"})).toBe(true);
+	expect(fired).toEqual([["addEdge", "graph", {fromTiddler: "A", toTiddler: "B"}]]);
 });
 
 it("reads a card's value from plain and list fields", function() {

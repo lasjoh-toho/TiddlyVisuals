@@ -1,0 +1,8 @@
+title: $:/TiddlyVisuals/styles
+tags: $:/tags/Stylesheet
+
+.tv-engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 1em 0; }
+.tv-engine { border: 1px solid color-mix(in srgb, <<colour foreground>> 15%, transparent); border-radius: 10px; padding: 4px 16px 14px; background: color-mix(in srgb, <<colour primary>> 4%, <<colour tiddler-background>>); }
+.tv-engine-head { display: flex; align-items: center; gap: 8px; font-size: 1.3em; font-weight: 600; margin-top: 10px; }
+.tv-engine-head svg { width: 1.1em; height: 1.1em; fill: <<colour primary>>; }
+.tv-engine-open { font-weight: 600; margin-top: 8px; }

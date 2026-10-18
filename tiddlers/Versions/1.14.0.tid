@@ -1,0 +1,8 @@
+created: 20261018130000000
+
+Kanban 0.4:
+
+* Cards are connected as on the Pinboard: hover a card and drag its dot onto another card. With the Kanban template you choose the kind of connection.
+* A click on an arrow selects it; its × or the Delete key removes it.
+
+The demo site opens with a new start page, [[TiddlyVisuals]], which explains that the site offers engines for <<.graph>> and links to their demos. Flibbles' [[Graph]] page stays as it is.

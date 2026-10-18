@@ -11,13 +11,13 @@ Kanban is an engine for <<.graph>> that lays a graph out as a Kanban board. Node
 
 </$boundingbox>
 
-Try it: drag a card to another column or swimlane and look at its `status` and `owner` fields, hover a column header to rename or move it, or use ''+ Column'' and the ''+'' at the bottom of a cell.
+Try it: drag a card to another column or swimlane and look at its `status` and `owner` fields, hover a column header to rename or move it, or use ''+ Column'' and the ''+'' at the bottom of a cell. To connect two cards, drag the blue dot of a card onto another card; click an arrow to remove it.
 
 ! Pros
 
 * A card's column and swimlane are ordinary fields of its tiddler, so filters, lists and other boards see the same status.
 * Columns and swimlanes are configurable in the graph settings and right on the board.
-* Arrows between cards show which task leads to or blocks which.
+* Arrows between cards show which task leads to or blocks which, and are drawn by dragging from card to card, as on the [[Pinboard]].
 * No third-party library.
 
 ! Cons
