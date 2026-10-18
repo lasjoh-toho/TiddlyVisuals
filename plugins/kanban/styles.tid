@@ -347,6 +347,57 @@ html:has(.kb-root.kb-fullscreen) .tc-topbar { display: none; }
 	fill: var(--kb-muted);
 }
 
+.kb-edge-hit {
+	fill: none;
+	stroke: transparent;
+	stroke-width: 14px;
+	pointer-events: stroke;
+	cursor: pointer;
+}
+
+.kb-edge-clickable:hover .kb-edge-line,
+.kb-edge.kb-selected .kb-edge-line {
+	stroke: var(--kb-accent);
+	opacity: 1;
+}
+
+.kb-edge-clickable:hover .kb-edge-head,
+.kb-edge.kb-selected .kb-edge-head {
+	fill: var(--kb-accent);
+}
+
+.kb-edge-delete {
+	pointer-events: all;
+	cursor: pointer;
+}
+
+.kb-edge-delete circle {
+	fill: var(--kb-card-bg);
+	stroke: var(--kb-accent);
+	stroke-width: 1.5px;
+}
+
+.kb-edge-delete path {
+	stroke: var(--kb-accent);
+	stroke-width: 2px;
+	stroke-linecap: round;
+}
+
+.kb-edge-delete:hover circle {
+	fill: var(--kb-accent);
+}
+
+.kb-edge-delete:hover path {
+	stroke: var(--kb-card-bg);
+}
+
+.kb-connect-line {
+	fill: none;
+	stroke: var(--kb-accent);
+	stroke-width: 2px;
+	stroke-dasharray: 6 4;
+}
+
 .kb-edge-label {
 	font-size: 12px;
 	fill: var(--kb-fg);
@@ -661,6 +712,39 @@ html:has(.kb-root.kb-fullscreen) .tc-topbar { display: none; }
 
 .kb-card:hover .kb-card-remove {
 	opacity: 1;
+}
+
+.kb-card-connector {
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--kb-accent);
+	border: 2px solid var(--kb-card-bg);
+	box-sizing: border-box;
+	cursor: crosshair;
+	opacity: 0;
+}
+
+.kb-card:hover .kb-card-connector,
+.kb-card.kb-connect-source .kb-card-connector {
+	opacity: 1;
+}
+
+.kb-is-dragging .kb-card-connector,
+.kb-readonly .kb-card-connector {
+	display: none;
+}
+
+.kb-card.kb-connect-target {
+	outline: 2px solid var(--kb-accent);
+	outline-offset: 1px;
+}
+
+.kb-is-connecting .kb-card {
+	cursor: crosshair;
 }
 
 .kb-add-card {

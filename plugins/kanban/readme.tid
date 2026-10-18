@@ -33,6 +33,8 @@ Pick the template ''Kanban (columns & swimlanes)'' in a graph's settings, or wri
 * Drag a card to move it within a column or to another column or swimlane. Click it to open it in the viewer (unless the graph gives nodes their own `actions`).
 * ''+'' in a cell adds a tiddler there: type a title; a missing tiddler is created with that cell's values. You can also drag a tiddler link from the story river onto a cell.
 * With a store tiddler, columns and swimlanes are edited on the board: ''+ Column'', ''+ Swimlane'', drag a header to move it, rename (✎ or double-click), remove (×). Renaming a column also renames the value on its cards; removing one leaves the cards' fields alone.
+* Connect two cards like on the Pinboard: hover a card and drag its blue dot onto another card. The graph's `addEdge` actions decide what is written; with the Kanban template you pick the kind of connection, which is stored in a field of the first card.
+* Click an arrow to select it, then click its × (or press Delete) to remove it.
 * Ctrl + mouse wheel zooms the board.
 
 !! Properties
@@ -49,8 +51,11 @@ Pick the template ''Kanban (columns & swimlanes)'' in a graph's settings, or wri
 |`projects` |Saved searches (title list); a saved tag is a project |
 |`store`, `storeField` |Where the order of the cards is kept |
 |`editable` |Allow moving cards and editing columns and swimlanes |
+|`addEdge` |Actions run when a card is dragged onto another, with `fromTiddler` and `toTiddler` |
 |!Nodes |!|
 |`label`, `color` |Card heading and the color of its left edge |
 |`fields`, `template` |Per card versions of the graph's `fields` and `cardTemplate` |
 |!Edges |!|
 |`label`, `color`, `width`, `arrows`, `stroke` |How the arrow between two cards looks |
+|`delete` |Actions that remove the edge; without them, arrows can't be selected |
+|`actions` |Actions run when an arrow without `delete` is clicked |

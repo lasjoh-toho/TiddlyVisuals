@@ -1,0 +1,34 @@
+title: TiddlyVisuals
+icon: $:/core/images/layout-button
+tags: Introduction
+
+\define engine(title, icon, text)
+<div class="tv-engine">
+<div class="tv-engine-head">{{$icon$}} <$link to="$title$">$title$</$link></div>
+
+$text$
+
+<div class="tv-engine-open"><$link to="$title$">Open the demo →</$link></div>
+</div>
+\end
+
+TiddlyVisuals is a collection of ''engines for [[TW5-Graph|Graph]]'', the graphing plugin for TiddlyWiki by [[Flibbles]]. <<.graph>> collects tiddlers and their connections as nodes and edges; an engine decides how they look and how you work with them. The engines here show the same tiddlers in new ways, and every change you make on a board is written back to the tiddlers.
+
+<div class="tv-engines">
+
+<<engine "Pinboard" "$:/core/images/layout-button" "An infinite canvas: tiddlers become cards you place freely, connect by dragging from card to card, and surround with drawings, sticky notes and frames. A path of frames and cards plays back as a presentation.">>
+
+<<engine "Kanban" "$:/core/images/list-bullet" "Columns and swimlanes from the fields of your tiddlers. Dragging a card to another column rewrites its fields; arrows between cards show what blocks what.">>
+
+</div>
+
+!! Installing
+
+{{Install pills}}
+
+Then pick the engine's template in a graph's settings. Each demo page explains the details.
+
+!! TW5-Graph itself
+
+[[Graph]] is Flibbles' own page for <<.graph>>, with its [[Documentation]] and the [[Vis-Network]] engine. TiddlyVisuals builds on it and keeps it as it is.
+
