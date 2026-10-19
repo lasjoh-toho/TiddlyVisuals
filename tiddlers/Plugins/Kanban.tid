@@ -1,7 +1,7 @@
 title: Kanban
-tags: Plugins Engines
+tags: Plugins Engines Introduction
 icon: $:/core/images/list-bullet
-builds-upon: Graph
+works-with: Graph
 
 Kanban is an engine for <<.graph>> that lays a graph out as a Kanban board. Nodes become cards in columns and swimlanes, decided by fields of their tiddlers, and edges become arrows between the cards.
 

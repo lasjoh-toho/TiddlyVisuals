@@ -358,6 +358,15 @@ methods.toggleFullscreen = function() {
 	this.root.focus({preventScroll: true});
 };
 
+/*
+Before showing tiddlers in the story river, the board gives the page back.
+*/
+methods.leaveFullscreen = function() {
+	if (this.fullscreen) {
+		this.toggleFullscreen();
+	}
+};
+
 methods.applyFullscreen = function() {
 	$tw.utils.toggleClass(this.root, "pb-fullscreen", !!this.fullscreen);
 	$tw.utils.toggleClass(this.fullscreenButton, "pb-active", !!this.fullscreen);
@@ -1033,10 +1042,6 @@ methods.renderSteps = function() {
 	var panel = this.stepsPanel;
 	var editable = this.isEditable();
 	Dom.clear(panel);
-	panel.appendChild(Dom.el(doc, "div", {"class": "pb-popup-head"}, [
-		Dom.el(doc, "strong", {text: "Presentation path"}),
-		Dom.button(doc, "close", "Close", function() { self.toggleSteps(false); }, "pb-btn-small")
-	]));
 	this.renderStoryHead(panel);
 	var steps = this.data.steps;
 	var outline = this.storyOutline();
