@@ -13,9 +13,18 @@ The pinboard document is stored as JSON in a field of the store tiddler:
   "cards":  { "<tiddler>": { "x", "y", "w", "h", "fields" } },
   "shapes": [ { "id", "type", "x", "y", "w", "h", "points", "stroke",
                 "fill", "width", "text", "layer", "fontSize" } ],
-  "steps":  [ { "id", "kind", "ref", "x", "y", "w", "h" } ],
+  "steps":  [ { "id", "kind", "ref", "x", "y", "w", "h", "level" } ],
   "view":   { "x", "y", "scale" }
 }
+
+A board can hold several stories (presentation paths). Then "stories"
+replaces "steps":
+
+  "stories": [ { "id", "title", "color", "width", "tiddler", "steps" } ],
+  "story":   "<id of the story shown>"
+
+In memory `doc.steps` always is the steps of the shown story, so code that
+only knows one path keeps working.
 
 \*/
 
@@ -51,7 +60,141 @@ function str(value) {
 /*** Document ***/
 
 exports.emptyDoc = function() {
-	return {version: 1, cards: Object.create(null), shapes: [], steps: []};
+	var doc = {version: 1, cards: Object.create(null), shapes: [], stories: [exports.newStory("main")], story: "main"};
+	defineSteps(doc);
+	return doc;
+};
+
+exports.DEFAULT_STORY_COLOR = "#e0503f";
+exports.MAX_LEVEL = 5;
+
+exports.newStory = function(id, title) {
+	var story = {id: id || exports.newId("p"), steps: []};
+	if (title) {
+		story.title = title;
+	}
+	return story;
+};
+
+/*
+`doc.steps` reads and writes the steps of the shown story.
+*/
+function defineSteps(doc) {
+	Object.defineProperty(doc, "steps", {
+		enumerable: false,
+		configurable: true,
+		get: function() {
+			return exports.activeStory(doc).steps;
+		},
+		set: function(steps) {
+			exports.activeStory(doc).steps = steps;
+		}
+	});
+}
+
+exports.activeStory = function(doc) {
+	for (var i = 0; i < doc.stories.length; i++) {
+		if (doc.stories[i].id === doc.story) {
+			return doc.stories[i];
+		}
+	}
+	if (!doc.stories.length) {
+		doc.stories.push(exports.newStory("main"));
+	}
+	doc.story = doc.stories[0].id;
+	return doc.stories[0];
+};
+
+exports.findStory = function(doc, id) {
+	for (var i = 0; i < doc.stories.length; i++) {
+		if (doc.stories[i].id === id) {
+			return doc.stories[i];
+		}
+	}
+	return null;
+};
+
+exports.storyTitle = function(doc, story) {
+	return story.title || ("Story " + (doc.stories.indexOf(story) + 1));
+};
+
+exports.storyColor = function(story) {
+	return story.color || exports.DEFAULT_STORY_COLOR;
+};
+
+/*
+The tiddlers of a story's cards in order, each once.
+*/
+exports.storyCards = function(story) {
+	var seen = Object.create(null), out = [];
+	story.steps.forEach(function(step) {
+		if (step.kind === "card" && !seen[step.ref]) {
+			seen[step.ref] = true;
+			out.push(step.ref);
+		}
+	});
+	return out;
+};
+
+/*
+Reorders a story after its tiddler's list was changed elsewhere: card steps
+follow the list, cards that left the list leave the story, new ones are
+appended. Other steps keep their places. Returns true if anything changed.
+*/
+exports.applyStoryList = function(story, list) {
+	var wanted = [], seen = Object.create(null);
+	list.forEach(function(title) {
+		if (title && !seen[title]) {
+			seen[title] = true;
+			wanted.push(title);
+		}
+	});
+	if (wanted.join("\n") === exports.storyCards(story).join("\n")) {
+		return false;
+	}
+	var byRef = Object.create(null);
+	story.steps.forEach(function(step) {
+		if (step.kind === "card" && !byRef[step.ref]) {
+			byRef[step.ref] = step;
+		}
+	});
+	var queue = wanted.map(function(title) {
+		return byRef[title] || {id: exports.newId("t"), kind: "card", ref: title};
+	});
+	var out = [], used = Object.create(null);
+	story.steps.forEach(function(step) {
+		if (step.kind !== "card") {
+			out.push(step);
+		} else if (seen[step.ref] && !used[step.ref] && queue.length) {
+			var next = queue.shift();
+			used[next.ref] = true;
+			out.push(next);
+		}
+	});
+	story.steps = out.concat(queue);
+	return true;
+};
+
+/*
+Indents (by +1) or outdents (by -1) a step. A step can be at most one level
+deeper than the one before it.
+*/
+exports.indentStep = function(steps, index, by) {
+	var step = steps[index];
+	if (!step) {
+		return false;
+	}
+	var before = index > 0 ? (steps[index - 1].level || 0) : -1;
+	var level = Math.max(0, Math.min((step.level || 0) + by, before + 1, exports.MAX_LEVEL));
+	if (level === (step.level || 0)) {
+		return false;
+	}
+	if (level) {
+		step.level = level;
+	} else {
+		delete step.level;
+	}
+	return true;
 };
 
 exports.parseDoc = function(text) {
@@ -67,7 +210,15 @@ exports.parseDoc = function(text) {
 };
 
 exports.serializeDoc = function(doc) {
-	var out = {version: 1, cards: {}, shapes: doc.shapes, steps: doc.steps};
+	var out = {version: 1, cards: {}, shapes: doc.shapes};
+	var only = doc.stories.length === 1 ? doc.stories[0] : null;
+	if (only && Object.keys(only).join(",") === "id,steps") {
+		// One plain story is written the way boards always were.
+		out.steps = only.steps;
+	} else {
+		out.stories = doc.stories;
+		out.story = doc.story;
+	}
 	var ids = Object.keys(doc.cards).sort();
 	for (var i = 0; i < ids.length; i++) {
 		var card = doc.cards[ids[i]];
@@ -111,13 +262,22 @@ exports.normalizeDoc = function(doc) {
 			}
 		}
 	}
-	if (Array.isArray(doc.steps)) {
-		for (var i = 0; i < doc.steps.length; i++) {
-			var step = normalizeStep(doc.steps[i]);
-			if (step) {
-				out.steps.push(step);
+	if (Array.isArray(doc.stories) && doc.stories.length) {
+		out.stories = [];
+		var storyIds = Object.create(null);
+		doc.stories.forEach(function(raw) {
+			var story = normalizeStory(raw);
+			if (story && !storyIds[story.id]) {
+				storyIds[story.id] = true;
+				out.stories.push(story);
 			}
+		});
+		if (!out.stories.length) {
+			out.stories.push(exports.newStory("main"));
 		}
+		out.story = storyIds[doc.story] ? doc.story : out.stories[0].id;
+	} else {
+		out.stories[0].steps = normalizeSteps(doc.steps);
 	}
 	if (doc.background && typeof doc.background === "object") {
 		var bg = {};
@@ -237,6 +397,58 @@ exports.normalizeShape = function(shape) {
 	return out;
 };
 
+/*
+An SVG path through the points, smoothed into a Catmull-Rom curve.
+*/
+exports.threadPath = function(points) {
+	if (points.length < 2) {
+		return "";
+	}
+	var d = "M" + round(points[0].x) + " " + round(points[0].y);
+	for (var i = 0; i < points.length - 1; i++) {
+		var p0 = points[i > 0 ? i - 1 : i], p1 = points[i], p2 = points[i + 1];
+		var p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+		var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+		var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+		d += "C" + round(c1x) + " " + round(c1y) + " " + round(c2x) + " " + round(c2y) + " " + round(p2.x) + " " + round(p2.y);
+	}
+	return d;
+};
+
+function normalizeSteps(list) {
+	var out = [];
+	if (Array.isArray(list)) {
+		for (var i = 0; i < list.length; i++) {
+			var step = normalizeStep(list[i]);
+			if (step) {
+				out.push(step);
+			}
+		}
+	}
+	return out;
+}
+
+function normalizeStory(story) {
+	if (!story || typeof story !== "object") {
+		return null;
+	}
+	var out = {id: str(story.id) || exports.newId("p")};
+	["title", "tiddler"].forEach(function(key) {
+		if (typeof story[key] === "string" && story[key]) {
+			out[key] = story[key];
+		}
+	});
+	if (typeof story.color === "string" && exports.parseColor(story.color)) {
+		out.color = story.color;
+	}
+	var width = num(story.width, 0);
+	if (width > 0) {
+		out.width = Math.min(20, width);
+	}
+	out.steps = normalizeSteps(story.steps);
+	return out;
+}
+
 function normalizeStep(step) {
 	if (!step || typeof step !== "object" || !STEP_KINDS[step.kind]) {
 		return null;
@@ -258,6 +470,10 @@ function normalizeStep(step) {
 	if (typeof step.title === "string" && step.title) {
 		out.title = step.title;
 	}
+	var level = Math.floor(num(step.level, 0));
+	if (level > 0) {
+		out.level = Math.min(exports.MAX_LEVEL, level);
+	}
 	return out;
 }
 
@@ -278,8 +494,10 @@ exports.findShape = function(doc, id) {
 
 exports.removeShape = function(doc, id) {
 	doc.shapes = doc.shapes.filter(function(s) { return s.id !== id; });
-	doc.steps = doc.steps.filter(function(s) {
-		return !((s.kind === "frame" || s.kind === "shape") && s.ref === id);
+	doc.stories.forEach(function(story) {
+		story.steps = story.steps.filter(function(s) {
+			return !((s.kind === "frame" || s.kind === "shape") && s.ref === id);
+		});
 	});
 };
 

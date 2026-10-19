@@ -98,7 +98,7 @@ exports.messages = {
 };
 
 // Fold in the other parts of the engine.
-["./lib/cards.js", "./lib/edges.js", "./lib/shapes.js", "./lib/ui.js", "./lib/presenter.js"].forEach(function(path) {
+["./lib/cards.js", "./lib/edges.js", "./lib/shapes.js", "./lib/ui.js", "./lib/presenter.js", "./lib/stories.js"].forEach(function(path) {
 	var methods = require(path).methods;
 	for (var name in methods) {
 		exports[name] = methods[name];
@@ -174,13 +174,17 @@ exports.buildDom = function() {
 	this.world = Dom.el(doc, "div", {"class": "pb-world"});
 	this.backLayer = Dom.svg(doc, "svg", {"class": "pb-svg pb-layer-back"});
 	this.edgeLayer = Dom.svg(doc, "svg", {"class": "pb-svg pb-layer-edges"});
+	this.pathLayer = Dom.svg(doc, "svg", {"class": "pb-svg pb-layer-path"});
+	this.pathMarks = Dom.svg(doc, "svg", {"class": "pb-svg pb-layer-path-marks"});
 	this.cardLayer = Dom.el(doc, "div", {"class": "pb-cards"});
 	this.frontLayer = Dom.svg(doc, "svg", {"class": "pb-svg pb-layer-front"});
 	this.uiLayer = Dom.svg(doc, "svg", {"class": "pb-svg pb-layer-ui"});
 	this.world.appendChild(this.backLayer);
 	this.world.appendChild(this.edgeLayer);
+	this.world.appendChild(this.pathLayer);
 	this.world.appendChild(this.cardLayer);
 	this.world.appendChild(this.frontLayer);
+	this.world.appendChild(this.pathMarks);
 	this.world.appendChild(this.uiLayer);
 	this.viewport.appendChild(this.world);
 	this.root.appendChild(this.viewport);
@@ -366,6 +370,7 @@ exports.writeStore = function() {
 		existing,
 		fields,
 		this.wiki.getModificationFields()));
+	this.syncStoryTiddlers();
 };
 
 /*
@@ -430,6 +435,9 @@ exports.handleWikiChange = function(changes) {
 			this.renderShapes();
 			this.updateUi();
 		}
+	}
+	if (store && !this.saveTimer && this.readStoryTiddlers(changes)) {
+		this.commit();
 	}
 	this.refreshCards(changes);
 	if (this.filterText) {
@@ -626,6 +634,7 @@ exports.renderNow = function() {
 		this.applyFilter();
 	}
 	this.renderEdges();
+	this.renderPath();
 	this.renderSelection();
 };
 

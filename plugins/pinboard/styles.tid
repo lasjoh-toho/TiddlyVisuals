@@ -774,6 +774,87 @@ type: text/vnd.tiddlywiki
 }
 .pb-grip .pb-icon { width: 16px; height: 16px; stroke-width: 3; }
 .pb-step.pb-sorting { opacity: .45; }
+.pb-step { padding-left: calc(2px + var(--pb-level, 0) * 16px); }
+.pb-step .pb-step-indent,
+.pb-step .pb-step-outdent { display: none; }
+.pb-step:hover .pb-step-indent,
+.pb-step:hover .pb-step-outdent { display: inline-flex; }
+
+/*** Stories ***/
+
+.pb-story-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 8px;
+}
+.pb-story-select {
+	flex: 1;
+	min-width: 0;
+	padding: 4px;
+	border: 1px solid var(--pb-border);
+	border-radius: 6px;
+	background: var(--pb-panel);
+	color: var(--pb-fg);
+	font-weight: 600;
+}
+.pb-story-dot {
+	flex: none;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+}
+.pb-story-name { flex: 1; min-width: 0; }
+.pb-story-color {
+	flex: none;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--pb-border);
+	border-radius: 6px;
+	background: none;
+	cursor: pointer;
+}
+.pb-story-width { flex: none; width: 64px; }
+.pb-story-tiddler { flex-wrap: wrap; }
+.pb-story-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	border: none;
+	background: none;
+	color: var(--pb-accent);
+	cursor: pointer;
+	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.pb-story-link .pb-icon { width: 16px; height: 16px; flex: none; }
+
+.pb-root svg.pb-layer-path .pb-thread-line {
+	fill: none;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	opacity: .85;
+	vector-effect: non-scaling-stroke;
+}
+.pb-thread-mark circle {
+	stroke: var(--pb-panel);
+	stroke-width: 2px;
+}
+.pb-thread-mark text {
+	fill: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	font-family: inherit;
+}
+.pb-card.pb-in-story {
+	box-shadow: 0 0 0 3px var(--pb-story-color, #e0503f), 0 6px 18px rgba(0,0,0,.10);
+}
+.pb-root.pb-presenting .pb-layer-path,
+.pb-root.pb-presenting .pb-layer-path-marks { display: none; }
 .pb-drop-marker {
 	height: 3px;
 	margin: 1px 4px;
@@ -1292,3 +1373,14 @@ html:has(.pb-root.pb-fullscreen) .tc-topbar { display: none; }
 	.pb-btn { width: 30px; height: 30px; }
 	.pb-steps { left: 10px; width: auto; }
 }
+
+/*** Story tiddlers ***/
+
+.pb-story-outline { margin: 0 0 1em; }
+.pb-story-item {
+	padding: 3px 0 3px 10px;
+	border-left: 3px solid <<colour primary>>;
+	margin-bottom: 2px;
+}
+.pb-story-item.pb-story-level-0 { font-weight: 600; }
+.pb-story-board { color: <<colour muted-foreground>>; font-size: .9em; }

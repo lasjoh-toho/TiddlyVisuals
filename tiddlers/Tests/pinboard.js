@@ -209,4 +209,81 @@ it("picks readable text colors", function() {
 	expect(Model.contrastColor("teal")).toBe("");
 });
 
+it("keeps one plain story the way boards always were", function() {
+	var doc = Model.parseDoc(JSON.stringify({steps: [{id: "a", kind: "card", ref: "A"}]}));
+	expect(doc.stories.length).toBe(1);
+	expect(doc.steps.map(function(s) { return s.ref; })).toEqual(["A"]);
+	var out = JSON.parse(Model.serializeDoc(doc));
+	expect(out.steps.length).toBe(1);
+	expect(out.stories).toBeUndefined();
+});
+
+it("keeps several stories and shows one of them", function() {
+	var doc = Model.parseDoc(JSON.stringify({
+		stories: [
+			{id: "one", steps: [{id: "a", kind: "card", ref: "A", level: 9}]},
+			{id: "two", title: "Second", color: "#3b82f6", width: 50, tiddler: "My story", steps: [{id: "b", kind: "card", ref: "B"}]},
+			{id: "two", steps: []},
+			{id: "bad", color: "nonsense", steps: "x"}
+		],
+		story: "two"}));
+	expect(doc.stories.map(function(s) { return s.id; })).toEqual(["one", "two", "bad"]);
+	expect(doc.stories[0].steps[0].level).toBe(Model.MAX_LEVEL);
+	expect(doc.stories[1].width).toBe(20);
+	expect(doc.stories[2].color).toBeUndefined();
+	expect(doc.steps[0].ref).toBe("B");
+	doc.steps.push({id: "c", kind: "card", ref: "C"});
+	doc.story = "one";
+	expect(doc.steps.map(function(s) { return s.ref; })).toEqual(["A"]);
+	var again = Model.parseDoc(Model.serializeDoc(doc));
+	expect(again.story).toBe("one");
+	expect(Model.findStory(again, "two").steps.length).toBe(2);
+	expect(Model.storyTitle(again, again.stories[0])).toBe("Story 1");
+	expect(Model.storyTitle(again, again.stories[1])).toBe("Second");
+	expect(Model.parseDoc(JSON.stringify({stories: [], story: "x"})).stories.length).toBe(1);
+});
+
+it("removes a shape's steps from every story", function() {
+	var doc = Model.parseDoc(JSON.stringify({
+		shapes: [{id: "f", type: "frame", x: 0, y: 0, w: 10, h: 10}],
+		stories: [
+			{id: "one", steps: [{kind: "frame", ref: "f"}]},
+			{id: "two", steps: [{kind: "frame", ref: "f"}, {kind: "card", ref: "A"}]}]}));
+	Model.removeShape(doc, "f");
+	expect(doc.stories[0].steps.length).toBe(0);
+	expect(doc.stories[1].steps.length).toBe(1);
+});
+
+it("follows a story tiddler's list", function() {
+	var story = {id: "s", steps: [
+		{id: "1", kind: "card", ref: "A"},
+		{id: "f", kind: "frame", ref: "frame"},
+		{id: "2", kind: "card", ref: "B"},
+		{id: "3", kind: "card", ref: "C"}]};
+	expect(Model.storyCards(story)).toEqual(["A", "B", "C"]);
+	expect(Model.applyStoryList(story, ["A", "B", "C"])).toBe(false);
+	expect(Model.applyStoryList(story, ["C", "A", "D"])).toBe(true);
+	expect(story.steps.map(function(s) { return s.ref; })).toEqual(["C", "frame", "A", "D"]);
+	expect(story.steps[0].id).toBe("3");
+	expect(story.steps[3].kind).toBe("card");
+});
+
+it("indents steps one level below the one above at most", function() {
+	var steps = [{kind: "card", ref: "A"}, {kind: "card", ref: "B"}, {kind: "card", ref: "C"}];
+	expect(Model.indentStep(steps, 0, 1)).toBe(false);
+	expect(Model.indentStep(steps, 1, 1)).toBe(true);
+	expect(Model.indentStep(steps, 1, 1)).toBe(false);
+	expect(Model.indentStep(steps, 2, 1)).toBe(true);
+	expect(Model.indentStep(steps, 2, 1)).toBe(true);
+	expect(steps.map(function(s) { return s.level || 0; })).toEqual([0, 1, 2]);
+	expect(Model.indentStep(steps, 2, -1)).toBe(true);
+	expect(steps[2].level).toBe(1);
+});
+
+it("draws a smooth thread through the stops", function() {
+	expect(Model.threadPath([{x: 0, y: 0}])).toBe("");
+	expect(Model.threadPath([{x: 0, y: 0}, {x: 60, y: 0}])).toBe("M0 0C10 0 50 0 60 0");
+	expect(Model.threadPath([{x: 0, y: 0}, {x: 60, y: 0}, {x: 60, y: 60}]).split("C").length).toBe(3);
+});
+
 });

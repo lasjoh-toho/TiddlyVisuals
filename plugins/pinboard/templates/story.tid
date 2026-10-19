@@ -1,0 +1,23 @@
+title: $:/plugins/lasjoh-toho/pinboard/templates/story
+
+\whitespace trim
+
+<div class="pb-story-outline">
+<$list filter="[list[]]" counter="n" variable="item" emptyMessage="This story has no cards yet.">
+<$let level={{{ [<currentTiddler>get[pinboard-levels]split[ ]nth<n>else[0]] }}}>
+<div class={{{ [[pb-story-item pb-story-level-]addsuffix<level>] }}} style.margin-left={{{ [<level>multiply[1.5]addsuffix[em]] }}}>
+<$link to=<<item>>><$transclude $tiddler=<<item>> $field="caption"><$text text=<<item>>/></$transclude></$link>
+</div>
+</$let>
+</$list>
+</div>
+
+<%if [list[]] %>
+<$button class="pb-story-open" tooltip="Open the story's cards in order in the story river">
+<$action-listops $tiddler="$:/StoryList" $field="list" $filter="[<currentTiddler>] [list[]] [list[$:/StoryList]]"/>
+Open story
+</$button>
+<%endif%>
+<%if [all[current]has[pinboard-board]] %>
+<span class="pb-story-board"><$text text=" on the board "/><$link to={{!!pinboard-board}}><$text text={{!!pinboard-board}}/></$link></span>
+<%endif%>

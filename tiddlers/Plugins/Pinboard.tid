@@ -11,7 +11,7 @@ Pinboard is an engine for <<.graph>> that turns a graph into an ''infinite canva
 
 </$boundingbox>
 
-Try it: drag cards, hover a card for its tools (view, open, fields, add to path), double-click a card to read it in the full-height viewer, pick a pen or shape from the dock, then press ▶ (top right).
+Try it: drag cards, hover a card for its tools (view, open, fields, add to path), double-click a card to read it in the full-height viewer, pick a pen or shape from the dock, then press ▶ (top right). The list button next to it opens the presentation path: the story is drawn on the board as a red thread, and with ''+'' you can start another story on the same board.
 
 ! Pros
 
