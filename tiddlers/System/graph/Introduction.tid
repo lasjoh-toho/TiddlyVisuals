@@ -1,5 +1,5 @@
 title: $:/graph/Introduction
-edges.fields: [all[]] -tags wrote builds-upon
+edges.fields: [all[]] -tags wrote builds-upon works-with
 graph.nodes: {"size":"25"}
 filter: [tag[Introduction]]
 type: application/json
@@ -11,5 +11,7 @@ type: application/json
     "Graph": "0,0",
     "Vis-Network": "-135,75",
     "TiddlyWiki": "147,4",
-    "Mermaid": "-135,-60"
+    "Mermaid": "-135,-60",
+    "Pinboard": "-45,150",
+    "Kanban": "115,130"
 }

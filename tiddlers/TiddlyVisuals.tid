@@ -1,6 +1,5 @@
 title: TiddlyVisuals
 icon: $:/core/images/layout-button
-tags: Introduction
 
 \define engine(title, icon, text)
 <div class="tv-engine">

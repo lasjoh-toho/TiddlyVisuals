@@ -1,7 +1,7 @@
 title: Pinboard
-tags: Plugins Engines
+tags: Plugins Engines Introduction
 icon: $:/core/images/layout-button
-builds-upon: Graph
+works-with: Graph
 
 Pinboard is an engine for <<.graph>> that turns a graph into an ''infinite canvas'' for thinking and presenting. Nodes become cards showing the fields you choose, you can draw, write and place shapes around them, and a path of frames, cards and views plays back as a fullscreen presentation where the camera flies across the board.
 

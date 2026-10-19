@@ -30,7 +30,7 @@ methods.renderPath = function() {
 	var layer = this.pathLayer, marks = this.pathMarks, doc = this.document, self = this;
 	Dom.clear(layer);
 	Dom.clear(marks);
-	var show = this.stepsOpen && !this.presenting;
+	var show = this.stepsOpen && !this.presenting && !Model.activeStory(this.data).hideThread;
 	var inStory = Object.create(null);
 	if (show) {
 		var story = Model.activeStory(this.data);
@@ -92,6 +92,8 @@ methods.addStory = function() {
 	story.color = SWATCHES[this.data.stories.length % SWATCHES.length];
 	this.data.stories.push(story);
 	this.data.story = story.id;
+	this.storySettingsOpen = true;
+	this.focusStoryName = Date.now();
 	this.commit();
 	this.toggleSteps(true);
 };
@@ -139,51 +141,105 @@ methods.indentStep = function(index, by) {
 };
 
 /*
-The panel's head: which story, its name and color, and its tiddler.
+The panel's head: which story, whether its thread shows, and a gear for
+everything else about it.
 */
 methods.renderStoryHead = function(panel) {
 	var doc = this.document, self = this;
 	var editable = this.isEditable();
 	var data = this.data;
 	var story = Model.activeStory(data);
-	var select = Dom.el(doc, "select", {"class": "pb-story-select", title: "Story shown, played and exported",
+	var select = Dom.el(doc, "select", {"class": "pb-story-select", title: "Presentation path: the story shown, played and exported",
 		onchange: function() { self.switchStory(select.value); }},
 		data.stories.map(function(s) {
 			return Dom.el(doc, "option", {value: s.id, text: Model.storyTitle(data, s)});
 		}));
 	select.value = story.id;
-	panel.appendChild(Dom.el(doc, "div", {"class": "pb-story-row"}, [
+	var hidden = !!story.hideThread;
+	var eye = Dom.button(doc, hidden ? "hide" : "eye", hidden ? "Show the thread on the board" : "Hide the thread on the board", function() {
+		if (editable) {
+			self.setStoryProperty("hideThread", hidden ? undefined : true);
+		} else {
+			story.hideThread = !hidden;
+			self.renderSteps();
+			self.renderPath();
+		}
+	}, "pb-btn-small pb-story-eye" + (hidden ? " pb-off" : ""));
+	var gear = Dom.button(doc, "gear", "Story settings", function() {
+		self.storySettingsOpen = !self.storySettingsOpen;
+		self.renderSteps();
+	}, "pb-btn-small" + (this.storySettingsOpen ? " pb-active" : ""));
+	panel.appendChild(Dom.el(doc, "div", {"class": "pb-story-row pb-story-head"}, [
 		Dom.el(doc, "span", {"class": "pb-story-dot", style: {background: Model.storyColor(story)}}),
 		select,
+		eye,
 		editable ? Dom.button(doc, "plus", "New story", function() { self.addStory(); }, "pb-btn-small") : null,
-		editable && data.stories.length > 1 ? Dom.button(doc, "trash", "Delete this story", function() { self.deleteStory(); }, "pb-btn-small") : null
+		gear,
+		Dom.button(doc, "close", "Close", function() { self.toggleSteps(false); }, "pb-btn-small")
 	]));
+	if (this.storySettingsOpen) {
+		this.renderStorySettings(panel, story);
+	}
+};
+
+/*
+The gear's popup: the story's name, its thread, its tiddler, and deleting it.
+*/
+methods.renderStorySettings = function(panel, story) {
+	var doc = this.document, self = this;
+	var editable = this.isEditable();
+	var data = this.data;
+	var popup = Dom.el(doc, "div", {"class": "pb-story-settings"});
+	var name = null;
 	if (editable) {
-		var name = Dom.el(doc, "input", {"class": "pb-input pb-story-name", type: "text", placeholder: Model.storyTitle(data, story),
+		name = Dom.el(doc, "input", {"class": "pb-input pb-story-name", type: "text", placeholder: Model.storyTitle(data, story),
 			value: story.title || "", title: "Name of the story",
-			onchange: function() { self.setStoryProperty("title", name.value.trim()); }});
+			onchange: function() {
+				var value = name.value.trim();
+				if (value !== (story.title || "")) {
+					// Rebuild the panel after this event, not while the field is
+					// still being blurred.
+					setTimeout(function() { self.setStoryProperty("title", value); }, 0);
+				}
+			},
+			onkeydown: function(event) {
+				if (event.key === "Enter") {
+					name.blur();
+				}
+			}});
+		popup.appendChild(Dom.el(doc, "label", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Name"}), name]));
 		var color = Dom.el(doc, "input", {type: "color", "class": "pb-story-color", value: Model.storyColor(story), title: "Color of the thread",
 			oninput: function() { story.color = color.value; self.renderPath(); },
 			onchange: function() { self.setStoryProperty("color", color.value); }});
 		var width = Dom.el(doc, "input", {type: "range", "class": "pb-story-width", min: 1, max: 12, step: 1, value: story.width || 3, title: "Thickness of the thread",
 			oninput: function() { self.setStoryProperty("width", Number(width.value), true); },
 			onchange: function() { self.setStoryProperty("width", Number(width.value)); }});
-		panel.appendChild(Dom.el(doc, "div", {"class": "pb-story-row"}, [name, color, width]));
+		popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Thread"}), color, width]));
 	}
-	var tiddlerRow = Dom.el(doc, "div", {"class": "pb-story-row pb-story-tiddler"});
 	if (story.tiddler) {
-		tiddlerRow.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
 			title: "Open the story's cards in order in the story river",
 			onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open story"]));
-		tiddlerRow.appendChild(Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
-			onclick: function(event) { self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), story.tiddler]));
+		popup.appendChild(Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
+			onclick: function(event) { self.leaveFullscreen(); self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), story.tiddler]));
 	} else if (editable && this.graph.store) {
-		tiddlerRow.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-			title: "Keep this story as a tiddler: its list field holds the cards in order, as an outline for the rest of the wiki",
+		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+			title: "Keep this story as a tiddler: its story field holds the cards in order, as an outline for the rest of the wiki",
 			onclick: function() { self.createStoryTiddler(); }}, [Dom.icon(doc, "tiddler"), "Make a story tiddler"]));
 	}
-	if (tiddlerRow.firstChild) {
-		panel.appendChild(tiddlerRow);
+	if (editable && data.stories.length > 1) {
+		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon pb-story-delete", type: "button",
+			title: "Delete this story (its cards stay on the board)",
+			onclick: function() { self.storySettingsOpen = false; self.deleteStory(); }}, [Dom.icon(doc, "trash"), "Delete story"]));
+	}
+	if (popup.firstChild) {
+		panel.appendChild(popup);
+	}
+	if (name && this.focusStoryName && Date.now() - this.focusStoryName < 1000) {
+		// A new story: its name is ready to type, also after the panel is
+		// rebuilt while it settles.
+		name.focus();
+		name.select();
 	}
 };
 
@@ -405,5 +461,6 @@ methods.openStory = function(event) {
 	});
 	var existing = this.wiki.getTiddler(listTitle);
 	this.wiki.addTiddler(new $tw.Tiddler(existing, {title: listTitle, list: titles.concat(current)}));
+	this.leaveFullscreen();
 	this.navigate(titles[0], event);
 };

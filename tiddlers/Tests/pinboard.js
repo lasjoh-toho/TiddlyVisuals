@@ -222,7 +222,7 @@ it("keeps several stories and shows one of them", function() {
 	var doc = Model.parseDoc(JSON.stringify({
 		stories: [
 			{id: "one", steps: [{id: "a", kind: "card", ref: "A", level: 9}]},
-			{id: "two", title: "Second", color: "#3b82f6", width: 50, tiddler: "My story", steps: [{id: "b", kind: "card", ref: "B"}]},
+			{id: "two", title: "Second", color: "#3b82f6", width: 50, hideThread: true, tiddler: "My story", steps: [{id: "b", kind: "card", ref: "B"}]},
 			{id: "two", steps: []},
 			{id: "bad", color: "nonsense", steps: "x"}
 		],
@@ -238,6 +238,8 @@ it("keeps several stories and shows one of them", function() {
 	var again = Model.parseDoc(Model.serializeDoc(doc));
 	expect(again.story).toBe("one");
 	expect(Model.findStory(again, "two").steps.length).toBe(2);
+	expect(Model.findStory(again, "two").hideThread).toBe(true);
+	expect(again.stories[0].hideThread).toBeUndefined();
 	expect(Model.storyTitle(again, again.stories[0])).toBe("Story 1");
 	expect(Model.storyTitle(again, again.stories[1])).toBe("Second");
 	expect(Model.parseDoc(JSON.stringify({stories: [], story: "x"})).stories.length).toBe(1);

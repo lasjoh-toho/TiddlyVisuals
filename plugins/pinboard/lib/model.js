@@ -493,6 +493,9 @@ function normalizeStory(story) {
 	if (width > 0) {
 		out.width = Math.min(20, width);
 	}
+	if (story.hideThread === true) {
+		out.hideThread = true;
+	}
 	out.steps = normalizeSteps(story.steps);
 	return out;
 }

@@ -1,0 +1,9 @@
+created: 20261019123000000
+
+Pinboard 0.4.2:
+
+* The story panel is more compact. Its head holds the story, an eye that hides or shows the thread on the board, ''+'' for a new story and a gear. The gear opens the story's name, the color and thickness of its thread, ''Make a story tiddler'' / ''Open story'' and ''Delete story''. A new story opens with its name ready to type.
+* The heading "Presentation path" is gone; the story picker says it in its tooltip. The list of stops has a thin scrollbar.
+* ''Open story'' leaves the board's fullscreen so the story river can be seen.
+
+Demo: the introduction map shows [[Pinboard]] and [[Kanban]] linked to [[Graph]] by "works with".

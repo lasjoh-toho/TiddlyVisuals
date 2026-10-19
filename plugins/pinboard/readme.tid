@@ -72,12 +72,12 @@ Frames join the presentation path automatically. Cards, shapes and the current v
 
 !! Stories
 
-A board can hold several presentation paths, called stories. The path panel shows one at a time: pick it at the top, ''+'' adds a story, the bin deletes it, and its name, color and thickness are set right below. ▶, the stops you add and ''Export as HTML'' all belong to the story shown.
+A board can hold several presentation paths, called stories. The path panel shows one at a time: pick it at the top, the eye hides or shows its thread on the board, and ''+'' adds a story. The gear opens the story's settings: its name, the color and thickness of its thread, its story tiddler (''Make a story tiddler'' / ''Open story'') and ''Delete story''. ▶, the stops you add and ''Export as HTML'' all belong to the story shown.
 
 * ''The thread'': while the path panel is open, the story is drawn on the board as a smooth line in its color from stop to stop, with each stop's number, and its cards get a ring in that color.
 * ''Outline'': Tab / Shift+Tab on a stop in the panel (or the arrows on hover) indent and outdent it, so stops become sub-points of the one above.
 * ''Story tiddler'': ''Make a story tiddler'' ties the story to a new tiddler. Its `story` field holds the story's cards and chapters in order (a title list, as in `[enlist{Story title!!story}]`) and `pinboard-levels` their indents; it shows them as an outline with an ''Open story'' button. Both stay in step: reordering the stops rewrites the field, and editing it elsewhere (a field editor, `<$action-listops $field="story">`) reorders, adds or removes the story's stops. Shapes and views stay presentation-only stops.
 * ''Chapters'': every frame in a story with a story tiddler gets a tiddler of its own, named after the frame's text (field `pinboard-frame` names the board). It is a chapter of the outline, and the cards lying inside the frame are indented one level below it. Its own `story` field lists the cards lying inside the frame (those of the story first, in its order, then the others from top to bottom); it follows when cards are moved in or out. Renaming the frame later does not rename its tiddler.
-* ''Open story'' (panel or story tiddler) puts the story tiddler and its cards at the top of the story river, in order.
+* ''Open story'' (gear or story tiddler) puts the story tiddler and its cards at the top of the story river, in order, and leaves the board's fullscreen.
 
 Messages for buttons inside the graph: `graph-pinboard-present` (optional `step`), `graph-pinboard-fit`, `graph-pinboard-open` (`tiddler`), `graph-center-node` (`tiddler`), `graph-move-view` (`x`, `y`, `scale`, `scaleBy`).
