@@ -1382,5 +1382,5 @@ html:has(.pb-root.pb-fullscreen) .tc-topbar { display: none; }
 	border-left: 3px solid <<colour primary>>;
 	margin-bottom: 2px;
 }
-.pb-story-item.pb-story-level-0 { font-weight: 600; }
+.pb-story-item.pb-story-chapter { font-weight: 600; font-size: 1.1em; margin-top: .4em; }
 .pb-story-board { color: <<colour muted-foreground>>; font-size: .9em; }

@@ -3,18 +3,18 @@ title: $:/plugins/lasjoh-toho/pinboard/templates/story
 \whitespace trim
 
 <div class="pb-story-outline">
-<$list filter="[list[]]" counter="n" variable="item" emptyMessage="This story has no cards yet.">
+<$list filter="[enlist{!!story}]" counter="n" variable="item" emptyMessage="This story has no cards yet.">
 <$let level={{{ [<currentTiddler>get[pinboard-levels]split[ ]nth<n>else[0]] }}}>
-<div class={{{ [[pb-story-item pb-story-level-]addsuffix<level>] }}} style.margin-left={{{ [<level>multiply[1.5]addsuffix[em]] }}}>
+<div class={{{ [[pb-story-item pb-story-level-]addsuffix<level>] [<item>has[pinboard-frame]then[pb-story-chapter]] +[join[ ]] }}} style.margin-left={{{ [<level>multiply[1.5]addsuffix[em]] }}}>
 <$link to=<<item>>><$transclude $tiddler=<<item>> $field="caption"><$text text=<<item>>/></$transclude></$link>
 </div>
 </$let>
 </$list>
 </div>
 
-<%if [list[]] %>
+<%if [enlist{!!story}] %>
 <$button class="pb-story-open" tooltip="Open the story's cards in order in the story river">
-<$action-listops $tiddler="$:/StoryList" $field="list" $filter="[<currentTiddler>] [list[]] [list[$:/StoryList]]"/>
+<$action-listops $tiddler="$:/StoryList" $field="list" $filter="[<currentTiddler>] [enlist{!!story}] [list[$:/StoryList]]"/>
 Open story
 </$button>
 <%endif%>

@@ -1039,11 +1039,12 @@ methods.renderSteps = function() {
 	]));
 	this.renderStoryHead(panel);
 	var steps = this.data.steps;
+	var outline = this.storyOutline();
 	var list = Dom.el(doc, "ol", {"class": "pb-step-list"});
 	steps.forEach(function(step, index) {
 		var missing = !self.stepTarget(step);
 		list.appendChild(Dom.el(doc, "li", {"class": "pb-step" + (missing ? " pb-missing" : "") + (self.presenting && self.presentIndex === index ? " pb-current" : ""),
-			style: {"--pb-level": String(step.level || 0)}}, [
+			style: {"--pb-level": String(outline[index].level)}}, [
 			editable ? Dom.el(doc, "span", {"class": "pb-grip", title: "Drag to reorder"}, [Dom.icon(doc, "grip")]) : null,
 			Dom.el(doc, "button", {"class": "pb-step-name", type: "button", title: editable ? "Show this step (Tab / Shift+Tab: indent / outdent)" : "Show this step",
 				onclick: function() {
