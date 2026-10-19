@@ -123,25 +123,68 @@ exports.storyColor = function(story) {
 };
 
 /*
-The tiddlers of a story's cards in order, each once.
+The tiddler a step stands for in its story's outline: a card's own tiddler,
+or the chapter tiddler of a frame. Other steps have none.
 */
-exports.storyCards = function(story) {
+exports.stepTiddler = function(doc, step) {
+	if (step.kind === "card") {
+		return step.ref;
+	}
+	if (step.kind === "frame") {
+		var shape = exports.findShape(doc, step.ref);
+		return (shape && shape.tiddler) || null;
+	}
+	return null;
+};
+
+/*
+The outline of a story, one entry per step: its tiddler (or null) and its
+level. A card lying inside the frame that last opened a chapter sits one
+level below it, on top of the indent given by hand. `centerOf(id)` tells
+where a card is.
+*/
+exports.storyOutline = function(doc, story, centerOf) {
+	var chapter = null;
+	return story.steps.map(function(step) {
+		var level = step.level || 0;
+		if (step.kind === "frame") {
+			chapter = exports.findShape(doc, step.ref);
+		} else if (step.kind === "card" && chapter) {
+			var c = centerOf && centerOf(step.ref);
+			if (c && c.x >= chapter.x && c.x <= chapter.x + chapter.w && c.y >= chapter.y && c.y <= chapter.y + chapter.h) {
+				level += 1;
+			}
+		}
+		return {tiddler: exports.stepTiddler(doc, step), level: Math.min(level, exports.MAX_LEVEL)};
+	});
+};
+
+/*
+The tiddlers of a story in order, each once, with their levels.
+*/
+exports.storyTiddlers = function(doc, story, centerOf) {
 	var seen = Object.create(null), out = [];
-	story.steps.forEach(function(step) {
-		if (step.kind === "card" && !seen[step.ref]) {
-			seen[step.ref] = true;
-			out.push(step.ref);
+	exports.storyOutline(doc, story, centerOf).forEach(function(entry) {
+		if (entry.tiddler && !seen[entry.tiddler]) {
+			seen[entry.tiddler] = true;
+			out.push(entry);
 		}
 	});
 	return out;
 };
 
+exports.storyCards = function(doc, story) {
+	return exports.storyTiddlers(doc, story).map(function(entry) { return entry.tiddler; });
+};
+
 /*
-Reorders a story after its tiddler's list was changed elsewhere: card steps
-follow the list, cards that left the list leave the story, new ones are
-appended. Other steps keep their places. Returns true if anything changed.
+Reorders a story after its tiddler's list was changed elsewhere: card and
+chapter steps follow the list, those that left the list leave the story,
+new titles are appended as cards. Other steps keep their places. Returns
+true if anything changed.
 */
-exports.applyStoryList = function(story, list) {
+exports.applyStoryList = function(doc, story, list) {
+	var titleOf = function(step) { return exports.stepTiddler(doc, step); };
 	var wanted = [], seen = Object.create(null);
 	list.forEach(function(title) {
 		if (title && !seen[title]) {
@@ -149,13 +192,14 @@ exports.applyStoryList = function(story, list) {
 			wanted.push(title);
 		}
 	});
-	if (wanted.join("\n") === exports.storyCards(story).join("\n")) {
+	if (wanted.join("\n") === exports.storyCards(doc, story).join("\n")) {
 		return false;
 	}
 	var byRef = Object.create(null);
 	story.steps.forEach(function(step) {
-		if (step.kind === "card" && !byRef[step.ref]) {
-			byRef[step.ref] = step;
+		var title = titleOf(step);
+		if (title && !byRef[title]) {
+			byRef[title] = step;
 		}
 	});
 	var queue = wanted.map(function(title) {
@@ -163,12 +207,13 @@ exports.applyStoryList = function(story, list) {
 	});
 	var out = [], used = Object.create(null);
 	story.steps.forEach(function(step) {
-		if (step.kind !== "card") {
+		var title = titleOf(step);
+		if (!title) {
 			out.push(step);
-		} else if (seen[step.ref] && !used[step.ref] && queue.length) {
-			var next = queue.shift();
-			used[next.ref] = true;
-			out.push(next);
+		} else if (seen[title] && !used[title] && queue.length) {
+			// One slot per title the story already had; duplicates drop out.
+			used[title] = true;
+			out.push(queue.shift());
 		}
 	});
 	story.steps = out.concat(queue);
@@ -392,6 +437,9 @@ exports.normalizeShape = function(shape) {
 	}
 	if (shape.hidden === true) {
 		out.hidden = true;
+	}
+	if (type === "frame" && typeof shape.tiddler === "string" && shape.tiddler) {
+		out.tiddler = shape.tiddler;
 	}
 	copyEffects(shape, out);
 	return out;

@@ -357,8 +357,10 @@ exports.writeStore = function() {
 	if (!store || this.destroyed) {
 		return;
 	}
+	this.ensureFrameTiddlers();
 	var text = Model.serializeDoc(this.data);
 	if (text === this.lastSaved) {
+		this.syncStoryTiddlers();
 		return;
 	}
 	this.lastSaved = text;

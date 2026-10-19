@@ -255,14 +255,15 @@ it("removes a shape's steps from every story", function() {
 });
 
 it("follows a story tiddler's list", function() {
+	var doc = Model.emptyDoc();
 	var story = {id: "s", steps: [
 		{id: "1", kind: "card", ref: "A"},
 		{id: "f", kind: "frame", ref: "frame"},
 		{id: "2", kind: "card", ref: "B"},
 		{id: "3", kind: "card", ref: "C"}]};
-	expect(Model.storyCards(story)).toEqual(["A", "B", "C"]);
-	expect(Model.applyStoryList(story, ["A", "B", "C"])).toBe(false);
-	expect(Model.applyStoryList(story, ["C", "A", "D"])).toBe(true);
+	expect(Model.storyCards(doc, story)).toEqual(["A", "B", "C"]);
+	expect(Model.applyStoryList(doc, story, ["A", "B", "C"])).toBe(false);
+	expect(Model.applyStoryList(doc, story, ["C", "A", "D"])).toBe(true);
 	expect(story.steps.map(function(s) { return s.ref; })).toEqual(["C", "frame", "A", "D"]);
 	expect(story.steps[0].id).toBe("3");
 	expect(story.steps[3].kind).toBe("card");
@@ -284,6 +285,30 @@ it("draws a smooth thread through the stops", function() {
 	expect(Model.threadPath([{x: 0, y: 0}])).toBe("");
 	expect(Model.threadPath([{x: 0, y: 0}, {x: 60, y: 0}])).toBe("M0 0C10 0 50 0 60 0");
 	expect(Model.threadPath([{x: 0, y: 0}, {x: 60, y: 0}, {x: 60, y: 60}]).split("C").length).toBe(3);
+});
+
+it("makes frames chapters and indents the cards inside them", function() {
+	var doc = Model.parseDoc(JSON.stringify({
+		shapes: [
+			{id: "f1", type: "frame", x: 0, y: 0, w: 100, h: 100, tiddler: "Chapter one"},
+			{id: "f2", type: "frame", x: 200, y: 0, w: 100, h: 100},
+			{id: "r", type: "rect", x: 0, y: 0, w: 10, h: 10, tiddler: "ignored"}],
+		steps: [
+			{kind: "frame", ref: "f1"},
+			{kind: "card", ref: "In"},
+			{kind: "card", ref: "Out"},
+			{kind: "card", ref: "Deep", level: 1},
+			{kind: "frame", ref: "f2"},
+			{kind: "shape", ref: "r"}]}));
+	expect(Model.findShape(doc, "r").tiddler).toBeUndefined();
+	var centers = {In: {x: 50, y: 50}, Out: {x: 150, y: 50}, Deep: {x: 20, y: 20}};
+	var outline = Model.storyOutline(doc, doc.stories[0], function(id) { return centers[id]; });
+	expect(outline.map(function(e) { return e.tiddler; })).toEqual(["Chapter one", "In", "Out", "Deep", null, null]);
+	expect(outline.map(function(e) { return e.level; })).toEqual([0, 1, 0, 2, 0, 0]);
+	expect(Model.storyCards(doc, doc.stories[0])).toEqual(["Chapter one", "In", "Out", "Deep"]);
+	// Moving a chapter in the list moves its frame step.
+	expect(Model.applyStoryList(doc, doc.stories[0], ["In", "Chapter one", "Out", "Deep"])).toBe(true);
+	expect(doc.steps.map(function(s) { return s.ref; })).toEqual(["In", "f1", "Out", "Deep", "f2", "r"]);
 });
 
 });

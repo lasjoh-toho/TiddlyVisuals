@@ -1,0 +1,6 @@
+created: 20261019121500000
+
+Pinboard 0.4.1:
+
+* Frames in a story with a story tiddler become chapters: each gets a tiddler of its own, named after the frame, which takes its place in the story's `list`. Cards lying inside a frame are indented one level below its chapter.
+* Fixed: after the story tiddler's list was reordered elsewhere, some cards could drop out of the story.
