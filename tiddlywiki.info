@@ -38,7 +38,7 @@
 				"index.html",
 				"text/plain",
 				"",
-				"publishFilter", "-[prefix[$:/test/]] -$:/plugins/tiddlywiki/jasmine -[prefix[$:/plugins/flibbles/relink]] -[prefix[$:/UpgradeLibrary]]",
+				"publishFilter", "-[prefix[$:/test/]] -$:/plugins/tiddlywiki/jasmine -[prefix[$:/UpgradeLibrary]]",
 				"coreURL", "tiddlywikicore.js",
 			"--render",
 				"$:/core/templates/tiddlywiki5.js",

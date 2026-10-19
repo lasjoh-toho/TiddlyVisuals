@@ -813,7 +813,7 @@ type: text/vnd.tiddlywiki
 	height: 12px;
 	border-radius: 50%;
 }
-.pb-story-name { flex: 1; min-width: 0; }
+.pb-story-name, .pb-story-tiddler-name { flex: 1; min-width: 0; }
 .pb-story-color {
 	flex: none;
 	width: 28px;
@@ -853,6 +853,8 @@ type: text/vnd.tiddlywiki
 	font-size: 12px;
 }
 .pb-story-delete { color: #c0392b; }
+.pb-story-error { color: #c0392b; font-size: 12px; }
+.pb-story-buttons { flex-wrap: wrap; }
 .pb-story-link {
 	display: inline-flex;
 	align-items: center;
