@@ -194,7 +194,10 @@ methods.renderStorySettings = function(panel, story) {
 	if (editable) {
 		name = Dom.el(doc, "input", {"class": "pb-input pb-story-name", type: "text", placeholder: Model.storyTitle(data, story),
 			value: story.title || "", title: "Name of the story",
-			onchange: function() {
+			onblur: function() {
+				if (self.rebuildingSteps) {
+					return;
+				}
 				var value = name.value.trim();
 				if (value !== (story.title || "")) {
 					// Rebuild the panel after this event, not while the field is
@@ -216,16 +219,54 @@ methods.renderStorySettings = function(panel, story) {
 			onchange: function() { self.setStoryProperty("width", Number(width.value)); }});
 		popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Thread"}), color, width]));
 	}
-	if (story.tiddler) {
-		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-			title: "Open the story's cards in order in the story river",
-			onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open story"]));
-		popup.appendChild(Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
-			onclick: function(event) { self.leaveFullscreen(); self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), story.tiddler]));
-	} else if (editable && this.graph.store) {
-		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-			title: "Keep this story as a tiddler: its story field holds the cards in order, as an outline for the rest of the wiki",
-			onclick: function() { self.createStoryTiddler(); }}, [Dom.icon(doc, "tiddler"), "Make a story tiddler"]));
+	if (story.tiddler || (editable && this.graph.store)) {
+		// The story tiddler: its name, free to choose before and after it
+		// is made.
+		// What is typed survives the panel being rebuilt meanwhile.
+		var draft = this.storyTiddlerDraft && this.storyTiddlerDraft.id === story.id ? this.storyTiddlerDraft.value : null;
+		var tiddlerName = Dom.el(doc, "input", {"class": "pb-input pb-story-tiddler-name", type: "text",
+			value: draft !== null ? draft : (story.tiddler || ""), placeholder: this.defaultStoryTiddler(story), readOnly: !editable,
+			title: story.tiddler ? "Name of the story tiddler (renaming it keeps it tied to this story)" : "Name for the story tiddler",
+			oninput: function() {
+				self.storyNameError = null;
+				self.storyTiddlerDraft = {id: story.id, value: tiddlerName.value};
+			},
+			onblur: function() {
+				if (self.rebuildingSteps) {
+					return;
+				}
+				var value = tiddlerName.value.trim();
+				self.storyTiddlerDraft = null;
+				if (story.tiddler && value && value !== story.tiddler) {
+					setTimeout(function() { self.renameStoryTiddler(story, value); }, 0);
+				}
+			},
+			onkeydown: function(event) {
+				if (event.key === "Enter") {
+					if (story.tiddler) {
+						tiddlerName.blur();
+					} else {
+						self.createStoryTiddler(tiddlerName.value.trim());
+					}
+				}
+			}});
+		popup.appendChild(Dom.el(doc, "label", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Tiddler"}), tiddlerName]));
+		if (this.storyNameError) {
+			popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-error", text: this.storyNameError}));
+		}
+		if (story.tiddler) {
+			popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-field pb-story-buttons"}, [
+				Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+					title: "Open the story's cards in order in the story river",
+					onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open story"]),
+				Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
+					onclick: function(event) { self.leaveFullscreen(); self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), "Show tiddler"])
+			]));
+		} else {
+			popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+				title: "Keep this story as a tiddler: its story field holds the cards in order, as an outline for the rest of the wiki",
+				onclick: function() { self.createStoryTiddler(tiddlerName.value.trim()); }}, [Dom.icon(doc, "tiddler"), "Make a story tiddler"]));
+		}
 	}
 	if (editable && data.stories.length > 1) {
 		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon pb-story-delete", type: "button",
@@ -245,21 +286,53 @@ methods.renderStorySettings = function(panel, story) {
 
 /*** The story tiddler ***/
 
-methods.createStoryTiddler = function() {
-	var story = Model.activeStory(this.data);
+/*
+The name a story tiddler gets unless another is chosen: the board's name
+and the story's.
+*/
+methods.defaultStoryTiddler = function(story) {
 	var base = Model.storyTitle(this.data, story);
 	var board = this.graph.store || "";
 	if (board.indexOf("$:/") === 0) {
 		// A system tiddler is named by its last part, e.g. "Pinboard Demo".
 		board = board.substr(board.lastIndexOf("/") + 1);
 	}
-	if (board) {
-		base = board + ": " + base;
-	}
+	return board ? board + ": " + base : base;
+};
+
+methods.createStoryTiddler = function(name) {
+	var story = Model.activeStory(this.data);
+	this.storyTiddlerDraft = null;
 	this.checkpoint();
-	story.tiddler = this.wiki.generateNewTitle(base);
+	story.tiddler = this.wiki.generateNewTitle(name || this.defaultStoryTiddler(story));
 	this.syncStoryTiddler(story, true);
 	this.commit();
+};
+
+/*
+Renames the story tiddler; with Relink installed, links to it elsewhere
+follow.
+*/
+methods.renameStoryTiddler = function(story, title) {
+	var from = story.tiddler;
+	if (!from || !title || title === from) {
+		return;
+	}
+	if (this.wiki.tiddlerExists(title) || this.wiki.isShadowTiddler(title)) {
+		this.storyNameError = "\"" + title + "\" already exists.";
+		this.renderSteps();
+		return;
+	}
+	this.storyNameError = null;
+	if (this.wiki.tiddlerExists(from)) {
+		this.wiki.renameTiddler(from, title);
+	}
+	this.checkpoint();
+	story.tiddler = title;
+	this.commit();
+	if (this.wiki.relinkTiddler) {
+		this.wiki.relinkTiddler(from, title);
+	}
 };
 
 methods.cardCenter = function(id) {

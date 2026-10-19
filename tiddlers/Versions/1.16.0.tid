@@ -1,0 +1,12 @@
+created: 20261019140000000
+
+Pinboard 0.5.0:
+
+* The story tiddler can be named freely: type the name in the gear's ''Tiddler'' field before making it. Renaming it there later keeps it tied to the story; with Relink, links to it follow.
+* With [[Relink]] installed, renaming a tiddler anywhere in the wiki renames it on every board too: its card and its stops, story and frame tiddlers, and the `story`, `pinboard-board` and `pinboard-frame` fields.
+
+Kanban 0.4.1:
+
+* With [[Relink]] installed, a renamed card keeps its place in the board's order.
+
+Demo: Relink is installed.

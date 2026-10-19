@@ -337,4 +337,40 @@ it("puts the cards lying in a frame into the story", function() {
 	expect(story.steps.map(function(s) { return s.ref; })).toEqual(["Z", "f1", "A", "f2"]);
 });
 
+it("follows renamed tiddlers with Relink", function() {
+	var wiki = new $tw.Wiki();
+	["story", "pinboard-board", "pinboard-frame", "kanban"].forEach(function(field) {
+		var config = "$:/config/flibbles/relink/fields/" + field;
+		expect($tw.wiki.isShadowTiddler(config)).toBe(true);
+		wiki.addTiddler($tw.wiki.getTiddler(config));
+	});
+	var board = {
+		cards: {A: {x: 1, y: 2}, B: {x: 3, y: 4}},
+		shapes: [{id: "f", type: "frame", x: 0, y: 0, w: 10, h: 10, tiddler: "Chapter"}],
+		stories: [
+			{id: "s1", tiddler: "My story", steps: [{id: "1", kind: "card", ref: "A"}, {id: "2", kind: "frame", ref: "f"}]},
+			{id: "s2", steps: [{id: "3", kind: "card", ref: "A"}]}],
+		story: "s1"};
+	wiki.addTiddler({title: "Board", pinboard: JSON.stringify(board)});
+	wiki.addTiddler({title: "My story", story: "A Chapter", "pinboard-board": "Board"});
+	wiki.addTiddler({title: "Chapter", story: "A", "pinboard-frame": "Board"});
+	wiki.addTiddler({title: "A"});
+	wiki.renameTiddler("A", "Alpha");
+	wiki.relinkTiddler("A", "Alpha");
+	var data = JSON.parse(wiki.getTiddler("Board").fields.pinboard);
+	expect(Object.keys(data.cards)).toEqual(["Alpha", "B"]);
+	expect(data.stories[0].steps[0].ref).toBe("Alpha");
+	expect(data.stories[1].steps[0].ref).toBe("Alpha");
+	expect(wiki.getTiddler("My story").fields.story).toBe("Alpha Chapter");
+	expect(wiki.getTiddler("Chapter").fields.story).toBe("Alpha");
+	wiki.renameTiddler("My story", "Our story");
+	wiki.relinkTiddler("My story", "Our story");
+	wiki.renameTiddler("Board", "New board");
+	wiki.relinkTiddler("Board", "New board");
+	data = JSON.parse(wiki.getTiddler("New board").fields.pinboard);
+	expect(data.stories[0].tiddler).toBe("Our story");
+	expect(wiki.getTiddler("Our story").fields["pinboard-board"]).toBe("New board");
+	expect(wiki.getTiddler("Chapter").fields["pinboard-frame"]).toBe("New board");
+});
+
 });

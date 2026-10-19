@@ -59,3 +59,7 @@ Pick the template ''Kanban (columns & swimlanes)'' in a graph's settings, or wri
 |`label`, `color`, `width`, `arrows`, `stroke` |How the arrow between two cards looks |
 |`delete` |Actions that remove the edge; without them, arrows can't be selected |
 |`actions` |Actions run when an arrow without `delete` is clicked |
+
+!! Renaming
+
+With [[Relink|https://flibbles.github.io/tw5-relink/]] installed, renaming a card's tiddler keeps its place in the board's order (the `kanban` field is a title list for Relink).

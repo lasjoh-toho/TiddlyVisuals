@@ -268,6 +268,10 @@ exports.applyChanges = function(objects) {
 			}
 		}
 	}
+	if (objects.nodes && this.stepsOpen && !objects.graph) {
+		// Stops name their cards; a card may have come, gone or been renamed.
+		this.renderSteps();
+	}
 	if (objects.edges) {
 		for (id in objects.edges) {
 			if (objects.edges[id] === null) {

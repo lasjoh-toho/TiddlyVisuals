@@ -1042,7 +1042,39 @@ methods.stepPadding = function(step) {
 	return step.kind === "frame" || step.kind === "view" ? 0.01 : 0.1;
 };
 
+/*
+Rebuilds the path panel. A text field being typed in keeps its text, caret
+and focus, and its change handler does not fire while it is replaced.
+*/
 methods.renderSteps = function() {
+	var panel = this.stepsPanel;
+	var active = this.document.activeElement;
+	var keep = null;
+	if (active && active.tagName === "INPUT" && active.type === "text" && panel.contains(active)) {
+		keep = {title: active.title, value: active.value, start: active.selectionStart, end: active.selectionEnd};
+	}
+	this.rebuildingSteps = true;
+	try {
+		this.buildSteps();
+	} finally {
+		this.rebuildingSteps = false;
+	}
+	if (keep) {
+		var inputs = panel.querySelectorAll("input[type=text]");
+		for (var i = 0; i < inputs.length; i++) {
+			if (inputs[i].title === keep.title) {
+				inputs[i].value = keep.value;
+				inputs[i].focus();
+				try {
+					inputs[i].setSelectionRange(keep.start, keep.end);
+				} catch (e) {}
+				break;
+			}
+		}
+	}
+};
+
+methods.buildSteps = function() {
 	var doc = this.document, self = this;
 	var panel = this.stepsPanel;
 	var editable = this.isEditable();
