@@ -786,6 +786,11 @@ methods.renderContextBar = function() {
 				self.openEffects("s:" + shape.id);
 			}, shape.build || shape.exit ? "pb-active" : ""));
 		}
+		if (shape.type === "frame" && shape.tiddler) {
+			buttons.push(Dom.button(doc, "open", "Open the frame's tiddler: " + shape.tiddler, function(event) { self.leaveFullscreen(); self.navigate(shape.tiddler, event); }));
+		} else if (shape.type === "frame" && this.graph.store) {
+			buttons.push(Dom.button(doc, "tiddler", "Make an entry: a tiddler for this frame, a chapter in story tiddlers listing the cards inside it", function() { self.makeFrameTiddler(shape); }));
+		}
 		if (shape.type === "sticky") {
 			buttons.push(Dom.button(doc, "tiddler", "Turn into a tiddler", function() { self.turnIntoTiddler(shape); }));
 		} else {

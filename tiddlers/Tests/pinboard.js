@@ -308,9 +308,33 @@ it("makes frames chapters and indents the cards inside them", function() {
 	expect(outline.map(function(e) { return e.tiddler; })).toEqual(["Chapter one", "In", "Out", "Deep", null, null]);
 	expect(outline.map(function(e) { return e.level; })).toEqual([0, 1, 0, 2, 0, 0]);
 	expect(Model.storyCards(doc, doc.stories[0])).toEqual(["Chapter one", "In", "Out", "Deep"]);
+	var levels = Model.storyTiddlers(doc, doc.stories[0], function(id) { return centers[id]; });
+	expect(levels.map(function(e) { return e.level; })).toEqual([0, 1, 0, 2]);
 	// Moving a chapter in the list moves its frame step.
 	expect(Model.applyStoryList(doc, doc.stories[0], ["In", "Chapter one", "Out", "Deep"])).toBe(true);
 	expect(doc.steps.map(function(s) { return s.ref; })).toEqual(["In", "f1", "Out", "Deep", "f2", "r"]);
+});
+
+it("puts the cards lying in a frame into the story", function() {
+	var doc = Model.parseDoc(JSON.stringify({
+		shapes: [
+			{id: "f1", type: "frame", x: 0, y: 0, w: 100, h: 100},
+			{id: "f2", type: "frame", x: 200, y: 0, w: 100, h: 100, tiddler: "Chapter"}],
+		steps: [
+			{kind: "card", ref: "A"},
+			{kind: "frame", ref: "f1"},
+			{kind: "frame", ref: "f2"},
+			{kind: "card", ref: "Z"}]}));
+	var story = doc.stories[0];
+	var inFrame = {f1: ["B", "A", "C"], f2: ["D", "Z"]};
+	var framed = function(shape) { return inFrame[shape.id]; };
+	var entries = Model.storyTiddlers(doc, story, null, framed);
+	expect(entries.map(function(e) { return e.tiddler; })).toEqual(["A", "B", "C", "Chapter", "D", "Z"]);
+	expect(entries.map(function(e) { return e.level; })).toEqual([0, 0, 0, 0, 1, 1]);
+	// Cards from frames are not added as steps, and stay out of reordering.
+	expect(Model.applyStoryList(doc, story, ["A", "B", "C", "Chapter", "D", "Z"], framed)).toBe(false);
+	expect(Model.applyStoryList(doc, story, ["Z", "D", "A", "Chapter"], framed)).toBe(true);
+	expect(story.steps.map(function(s) { return s.ref; })).toEqual(["Z", "f1", "A", "f2"]);
 });
 
 });
