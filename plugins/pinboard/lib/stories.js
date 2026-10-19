@@ -279,7 +279,7 @@ What the story tiddler should say: its cards and chapters in order, and
 their levels.
 */
 methods.storyFields = function(story) {
-	var entries = Model.storyTiddlers(this.data, story, this.cardCenter.bind(this));
+	var entries = Model.storyTiddlers(this.data, story, this.cardCenter.bind(this), this.framedBy(story));
 	var levels = entries.map(function(entry) { return String(entry.level); });
 	return {
 		story: $tw.utils.stringifyList(entries.map(function(entry) { return entry.tiddler; })),
@@ -300,7 +300,7 @@ methods.frameCards = function(shape, story) {
 		}
 	});
 	var rank = Object.create(null);
-	Model.storyCards(this.data, story).forEach(function(title, i) { rank[title] = i; });
+	Model.stepTitles(this.data, story).forEach(function(title, i) { rank[title] = i; });
 	inside.sort(function(a, b) {
 		var ra = a.id in rank ? rank[a.id] : Infinity, rb = b.id in rank ? rank[b.id] : Infinity;
 		return ra !== rb ? ra - rb : (Math.abs(a.y - b.y) > 20 ? a.y - b.y : a.x - b.x);
@@ -340,55 +340,36 @@ methods.writeStoryFields = function(title, fields, create, extra) {
 };
 
 /*
-Every frame in a story that has a story tiddler becomes a chapter: it gets
-a tiddler of its own, named after the frame's text. Returns true if any
-frame got one.
+For Model.storyTiddlers: the cards lying in a frame, for `story`.
 */
-methods.ensureFrameTiddlers = function() {
-	var self = this, made = false;
-	var used = Object.create(null);
-	this.data.shapes.forEach(function(shape) {
-		if (shape.tiddler) {
-			used[shape.tiddler] = true;
-		}
-	});
-	this.data.stories.forEach(function(story) {
-		if (!story.tiddler) {
-			return;
-		}
-		story.steps.forEach(function(step) {
-			var shape = step.kind === "frame" && Model.findShape(self.data, step.ref);
-			if (!shape || shape.tiddler) {
-				return;
-			}
-			var name = (shape.text || "").split("\n")[0].trim() || "Frame";
-			var title = self.wiki.generateNewTitle(name);
-			var old = self.wiki.getTiddler(name);
-			if (old && old.fields["pinboard-frame"] === self.graph.store && !used[name]) {
-				// This frame's chapter from before (e.g. after an undo).
-				title = name;
-			} else {
-				self.wiki.addTiddler(new $tw.Tiddler(self.wiki.getCreationFields(), {
-					title: title,
-					"pinboard-frame": self.graph.store
-				}, self.wiki.getModificationFields()));
-			}
-			shape.tiddler = title;
-			used[title] = true;
-			made = true;
-		});
-	});
-	return made;
+methods.framedBy = function(story) {
+	var self = this;
+	return function(shape) { return self.frameCards(shape, story); };
+};
+
+/*
+Gives a frame a tiddler of its own, named after its text: a chapter in the
+outline of every story it is part of.
+*/
+methods.makeFrameTiddler = function(shape) {
+	if (shape.tiddler) {
+		return;
+	}
+	var name = (shape.text || "").split("\n")[0].trim().substr(0, 80).replace(/[\[\]{}|]/g, "") || "Frame";
+	var title = this.wiki.generateNewTitle(name);
+	this.wiki.addTiddler(new $tw.Tiddler(this.wiki.getCreationFields(), {
+		title: title,
+		"pinboard-frame": this.graph.store
+	}, this.wiki.getModificationFields()));
+	this.checkpoint();
+	shape.tiddler = title;
+	this.commit();
 };
 
 methods.syncStoryTiddler = function(story, create) {
 	if (!story.tiddler) {
 		return;
 	}
-	if (create) {
-		this.ensureFrameTiddlers();
-	}
-	var self = this;
 	var wanted = this.storyFields(story);
 	var existing = this.wiki.getTiddler(story.tiddler);
 	if (existing && existing.fields["pinboard-board"] && existing.fields.list !== undefined) {
@@ -399,19 +380,23 @@ methods.syncStoryTiddler = function(story, create) {
 		text: "{{||" + STORY_TEMPLATE + "}}",
 		"pinboard-board": this.graph.store
 	});
-	// Each chapter lists the cards inside its frame.
-	story.steps.forEach(function(step) {
-		var shape = step.kind === "frame" && Model.findShape(self.data, step.ref);
-		if (shape && shape.tiddler) {
-			self.writeStoryFields(shape.tiddler, {story: $tw.utils.stringifyList(self.frameCards(shape, story))}, false);
-		}
-	});
 };
 
 methods.syncStoryTiddlers = function() {
 	var self = this;
 	this.data.stories.forEach(function(story) {
 		self.syncStoryTiddler(story, false);
+	});
+	// A frame's tiddler lists the cards inside the frame, in the order of
+	// the first story the frame is part of.
+	this.data.shapes.forEach(function(shape) {
+		if (shape.type !== "frame" || !shape.tiddler) {
+			return;
+		}
+		var story = self.data.stories.filter(function(s) {
+			return s.steps.some(function(step) { return step.kind === "frame" && step.ref === shape.id; });
+		})[0] || Model.activeStory(self.data);
+		self.writeStoryFields(shape.tiddler, {story: $tw.utils.stringifyList(self.frameCards(shape, story))}, false);
 	});
 };
 
@@ -433,7 +418,7 @@ methods.readStoryTiddlers = function(changes) {
 		if (self.storyWrites && self.storyWrites[story.tiddler] === list) {
 			return;
 		}
-		if (Model.applyStoryList(self.data, story, $tw.utils.parseStringArray(list) || [])) {
+		if (Model.applyStoryList(self.data, story, $tw.utils.parseStringArray(list) || [], self.framedBy(story))) {
 			changed = true;
 		}
 	});
@@ -446,7 +431,7 @@ already open, and scrolls to the first one.
 */
 methods.openStory = function(event) {
 	var story = Model.activeStory(this.data);
-	var titles = Model.storyCards(this.data, story).filter(function(title) {
+	var titles = Model.storyCards(this.data, story, this.cardCenter.bind(this), this.framedBy(story)).filter(function(title) {
 		return !!this.wiki.getTiddler(title) || this.wiki.isShadowTiddler(title);
 	}, this);
 	if (story.tiddler) {

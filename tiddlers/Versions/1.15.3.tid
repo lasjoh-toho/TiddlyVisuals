@@ -1,0 +1,6 @@
+created: 20261019130000000
+
+Pinboard 0.4.3:
+
+* A frame in a story brings every card lying inside it into the story tiddler, also cards that are not stops of their own.
+* Making a story tiddler no longer creates tiddlers for its frames. A selected frame has a ''Make an entry'' button instead, which gives it a tiddler of its own. That tiddler is a chapter in story tiddlers and its `story` field lists the cards inside the frame. Once made, the button opens it.

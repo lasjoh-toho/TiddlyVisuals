@@ -160,39 +160,82 @@ exports.storyOutline = function(doc, story, centerOf) {
 };
 
 /*
-The tiddlers of a story in order, each once, with their levels.
+The tiddlers of a story in order, each once, with their levels. A frame
+brings the cards lying inside it (`framed(shape)` lists them), below its
+chapter tiddler if it has one; so does a card step lying in such a frame.
 */
-exports.storyTiddlers = function(doc, story, centerOf) {
+exports.storyTiddlers = function(doc, story, centerOf, framed) {
 	var seen = Object.create(null), out = [];
-	exports.storyOutline(doc, story, centerOf).forEach(function(entry) {
-		if (entry.tiddler && !seen[entry.tiddler]) {
-			seen[entry.tiddler] = true;
-			out.push(entry);
+	var add = function(title, level) {
+		if (title && !seen[title]) {
+			seen[title] = true;
+			out.push({tiddler: title, level: Math.min(level, exports.MAX_LEVEL)});
+		}
+	};
+	var chapter = null;
+	story.steps.forEach(function(step) {
+		var level = step.level || 0;
+		if (step.kind === "frame") {
+			chapter = exports.findShape(doc, step.ref);
+			if (chapter) {
+				add(chapter.tiddler, level);
+				var inner = level + (chapter.tiddler ? 1 : 0);
+				(framed ? framed(chapter) : []).forEach(function(title) { add(title, inner); });
+			}
+		} else if (step.kind === "card") {
+			var c = chapter && chapter.tiddler && centerOf && centerOf(step.ref);
+			var inside = c && c.x >= chapter.x && c.x <= chapter.x + chapter.w && c.y >= chapter.y && c.y <= chapter.y + chapter.h;
+			add(step.ref, level + (inside ? 1 : 0));
 		}
 	});
 	return out;
 };
 
-exports.storyCards = function(doc, story) {
-	return exports.storyTiddlers(doc, story).map(function(entry) { return entry.tiddler; });
+exports.storyCards = function(doc, story, centerOf, framed) {
+	return exports.storyTiddlers(doc, story, centerOf, framed).map(function(entry) { return entry.tiddler; });
+};
+
+/*
+The titles of a story's own steps (cards and chapters), each once.
+*/
+exports.stepTitles = function(doc, story) {
+	var seen = Object.create(null), out = [];
+	story.steps.forEach(function(step) {
+		var title = exports.stepTiddler(doc, step);
+		if (title && !seen[title]) {
+			seen[title] = true;
+			out.push(title);
+		}
+	});
+	return out;
 };
 
 /*
 Reorders a story after its tiddler's list was changed elsewhere: card and
 chapter steps follow the list, those that left the list leave the story,
-new titles are appended as cards. Other steps keep their places. Returns
-true if anything changed.
+new titles are appended as cards. Cards that are only in the list because
+they lie in a frame (`framed`) follow their frame and are left alone. Other
+steps keep their places. Returns true if anything changed.
 */
-exports.applyStoryList = function(doc, story, list) {
+exports.applyStoryList = function(doc, story, list, framed) {
 	var titleOf = function(step) { return exports.stepTiddler(doc, step); };
+	var own = exports.stepTitles(doc, story);
+	var isOwn = Object.create(null);
+	own.forEach(function(title) { isOwn[title] = true; });
+	var derived = Object.create(null);
+	exports.storyCards(doc, story, null, framed).forEach(function(title) {
+		if (!isOwn[title]) {
+			derived[title] = true;
+		}
+	});
 	var wanted = [], seen = Object.create(null);
 	list.forEach(function(title) {
-		if (title && !seen[title]) {
+		if (title && !seen[title] && !derived[title]) {
 			seen[title] = true;
 			wanted.push(title);
 		}
 	});
-	if (wanted.join("\n") === exports.storyCards(doc, story).join("\n")) {
+	if (wanted.join("\n") === own.join("\n")) {
 		return false;
 	}
 	var byRef = Object.create(null);
