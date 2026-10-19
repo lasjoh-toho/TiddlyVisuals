@@ -830,6 +830,7 @@ methods.toggleSteps = function(open) {
 	$tw.utils.toggleClass(this.stepsPanel, "pb-open", this.stepsOpen);
 	$tw.utils.toggleClass(this.layersPanel, "pb-open", !!this.layersOpen);
 	this.updateUi();
+	this.scheduleRender();
 };
 
 methods.toggleLayers = function(open) {
@@ -840,6 +841,7 @@ methods.toggleLayers = function(open) {
 	$tw.utils.toggleClass(this.layersPanel, "pb-open", this.layersOpen);
 	$tw.utils.toggleClass(this.stepsPanel, "pb-open", !!this.stepsOpen);
 	this.updateUi();
+	this.scheduleRender();
 };
 
 /*
@@ -1035,20 +1037,32 @@ methods.renderSteps = function() {
 		Dom.el(doc, "strong", {text: "Presentation path"}),
 		Dom.button(doc, "close", "Close", function() { self.toggleSteps(false); }, "pb-btn-small")
 	]));
+	this.renderStoryHead(panel);
 	var steps = this.data.steps;
 	var list = Dom.el(doc, "ol", {"class": "pb-step-list"});
 	steps.forEach(function(step, index) {
 		var missing = !self.stepTarget(step);
-		list.appendChild(Dom.el(doc, "li", {"class": "pb-step" + (missing ? " pb-missing" : "") + (self.presenting && self.presentIndex === index ? " pb-current" : "")}, [
+		list.appendChild(Dom.el(doc, "li", {"class": "pb-step" + (missing ? " pb-missing" : "") + (self.presenting && self.presentIndex === index ? " pb-current" : ""),
+			style: {"--pb-level": String(step.level || 0)}}, [
 			editable ? Dom.el(doc, "span", {"class": "pb-grip", title: "Drag to reorder"}, [Dom.icon(doc, "grip")]) : null,
-			Dom.el(doc, "button", {"class": "pb-step-name", type: "button", title: "Show this step",
+			Dom.el(doc, "button", {"class": "pb-step-name", type: "button", title: editable ? "Show this step (Tab / Shift+Tab: indent / outdent)" : "Show this step",
 				onclick: function() {
 					var target = self.stepTarget(step);
 					target && self.flyTo(target.rect, self.stepPadding(step), true, target.rot);
+				},
+				onkeydown: function(event) {
+					if (editable && event.key === "Tab") {
+						event.preventDefault();
+						self.indentStep(index, event.shiftKey ? -1 : 1);
+						var again = self.stepsPanel.querySelectorAll(".pb-step-name")[index];
+						again && again.focus();
+					}
 				}}, [
 				Dom.el(doc, "span", {"class": "pb-step-kind pb-step-kind-" + step.kind, text: String(index + 1)}),
 				Dom.el(doc, "span", {"class": "pb-step-title", text: self.stepTitle(step)})
 			]),
+			editable ? Dom.button(doc, "left", "Outdent", function() { self.indentStep(index, -1); }, "pb-btn-small pb-step-outdent") : null,
+			editable ? Dom.button(doc, "right", "Indent (a sub-point of the stop above)", function() { self.indentStep(index, 1); }, "pb-btn-small pb-step-indent") : null,
 			Dom.button(doc, "play", "Present from here", function() { self.startPresentation(index); }, "pb-btn-small"),
 			editable ? Dom.button(doc, "close", "Remove from path", function() {
 				self.checkpoint();

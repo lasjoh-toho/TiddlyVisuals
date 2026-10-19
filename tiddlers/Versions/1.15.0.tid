@@ -1,0 +1,8 @@
+created: 20261019120000000
+
+Pinboard 0.4, stories:
+
+* A board can hold several presentation paths ("stories"), each with a name, color and thickness, picked at the top of the path panel. Existing boards keep their path as the first story.
+* While the path panel is open, the story is drawn on the board as a thread through its stops, with their numbers, as in the Moodle pinboard.
+* Stops can be indented (Tab / Shift+Tab) to make an outline.
+* ''Make a story tiddler'' keeps a story as a tiddler whose `list` field holds its cards in order, so the rest of the wiki can use it as an outline; ''Open story'' opens the cards in the story river.

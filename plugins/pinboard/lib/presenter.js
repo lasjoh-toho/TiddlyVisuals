@@ -106,6 +106,7 @@ methods.afterPresentation = function() {
 	if (!this.destroyed) {
 		this.updateUi();
 		this.renderSelection();
+		this.scheduleRender();
 	}
 };
 
