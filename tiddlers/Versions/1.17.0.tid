@@ -1,0 +1,6 @@
+created: 20261020160000000
+
+Pinboard 0.6.0:
+
+* ''Boards inside boards'': a card whose tiddler has a `pinboard-dive` field naming another board leads into it. Its card looks like a little stack, and the ''dive'' tool shows that board in place of this one, with a breadcrumb above it to go back up.
+* A board that is already open above (directly or further up) cannot be dived into, so boards never nest inside themselves.

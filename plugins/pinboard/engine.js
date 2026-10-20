@@ -30,6 +30,7 @@ exports.properties = {
 	graph: {
 		store: {type: "string", description: "Tiddler which keeps the board's drawings, card sizes, chosen fields and presentation path"},
 		storeField: {type: "string", default: "pinboard", description: "Field of the store tiddler holding the board data"},
+		diveState: {type: "string", description: "Tiddler whose list keeps the boards dived into (cards with a pinboard-dive field get a dive button)"},
 		fields: {type: "string", default: "title text", description: "Fields shown on cards unless chosen otherwise per card"},
 		cardTemplate: {type: "string", description: "Tiddler used to render card bodies"},
 		cardWidth: {type: "number", min: 60, default: 240, description: "Default width of new cards"},

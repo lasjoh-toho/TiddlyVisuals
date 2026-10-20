@@ -373,4 +373,35 @@ it("follows renamed tiddlers with Relink", function() {
 	expect(wiki.getTiddler("Chapter").fields["pinboard-frame"]).toBe("New board");
 });
 
+it("dives into the board of a card, but never into a board already open", function() {
+	var Cards = require("$:/plugins/lasjoh-toho/pinboard/lib/cards.js").methods;
+	var wiki = new $tw.Wiki();
+	wiki.addTiddlers([
+		{title: "$:/graph/Map", filter: "[[A]]"},
+		{title: "$:/graph/Map/A", filter: "[[B]]"},
+		{title: "A", "pinboard-dive": "$:/graph/Map/A"},
+		{title: "B", "pinboard-dive": "$:/graph/Map"},
+		{title: "C", "pinboard-dive": "Missing"}]);
+	var board = function(store) {
+		var engine = Object.create(Cards);
+		engine.wiki = wiki;
+		engine.graph = {store: store, diveState: "$:/state/dive"};
+		return engine;
+	};
+	var root = board("$:/graph/Map");
+	expect(root.diveTarget("A")).toEqual({title: "$:/graph/Map/A", open: false});
+	expect(root.diveTarget("C")).toBeNull();
+	root.dive("A");
+	expect(wiki.getTiddlerList("$:/state/dive")).toEqual(["$:/graph/Map", "$:/graph/Map/A"]);
+	// One level down, B leads back up to the root: blocked.
+	var inner = board("$:/graph/Map/A");
+	expect(inner.diveTarget("B")).toEqual({title: "$:/graph/Map", open: true});
+	inner.dive("B");
+	expect(wiki.getTiddlerList("$:/state/dive")).toEqual(["$:/graph/Map", "$:/graph/Map/A"]);
+	// Without a dive state (a graph written by hand), cards have no dive button.
+	var plain = board("$:/graph/Map");
+	plain.graph.diveState = undefined;
+	expect(plain.diveTarget("A")).toBeNull();
+});
+
 });
