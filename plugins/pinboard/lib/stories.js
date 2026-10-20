@@ -180,6 +180,65 @@ methods.renderStoryHead = function(panel) {
 	if (this.storySettingsOpen) {
 		this.renderStorySettings(panel, story);
 	}
+	this.renderStoryTiddler(panel, story);
+};
+
+/*
+The story tiddler, right under the head: its name is free to choose before
+it is made (Enter or "Make a story tiddler"), and renaming it later keeps it
+tied to the story.
+*/
+methods.renderStoryTiddler = function(panel, story) {
+	var doc = this.document, self = this;
+	var editable = this.isEditable();
+	var box = Dom.el(doc, "div", {"class": "pb-story-tiddler"});
+	if (story.tiddler || (editable && this.graph.store)) {
+		// The story tiddler: its name, free to choose before and after it
+		// is made.
+		// What is typed survives the panel being rebuilt meanwhile.
+		var draft = this.storyTiddlerDraft && this.storyTiddlerDraft.id === story.id ? this.storyTiddlerDraft.value : null;
+		var tiddlerName = Dom.el(doc, "input", {"class": "pb-input pb-story-tiddler-name", type: "text",
+			value: draft !== null ? draft : (story.tiddler || ""), placeholder: this.defaultStoryTiddler(story), readOnly: !editable,
+			title: story.tiddler ? "Name of the story tiddler (renaming it keeps it tied to this story)" : "Name for the story tiddler",
+			oninput: function() {
+				self.storyNameError = null;
+				self.storyTiddlerDraft = {id: story.id, value: tiddlerName.value};
+			},
+			onblur: function() {
+				if (self.rebuildingSteps) {
+					return;
+				}
+				var value = tiddlerName.value.trim();
+				self.storyTiddlerDraft = null;
+				if (story.tiddler && value && value !== story.tiddler) {
+					setTimeout(function() { self.renameStoryTiddler(story, value); }, 0);
+				}
+			},
+			onkeydown: function(event) {
+				if (event.key === "Enter") {
+					if (story.tiddler) {
+						tiddlerName.blur();
+					} else {
+						self.createStoryTiddler(tiddlerName.value.trim());
+					}
+				}
+			}});
+		box.appendChild(Dom.el(doc, "label", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Tiddler"}), tiddlerName]));
+		if (this.storyNameError) {
+			box.appendChild(Dom.el(doc, "div", {"class": "pb-story-error", text: this.storyNameError}));
+		}
+		if (story.tiddler) {
+			box.appendChild(Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
+				onclick: function(event) { self.leaveFullscreen(); self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), "Show tiddler"]));
+		} else {
+			box.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+				title: "Keep this story as a tiddler: its story field holds the cards in order, as an outline for the rest of the wiki",
+				onclick: function() { self.createStoryTiddler(tiddlerName.value.trim()); }}, [Dom.icon(doc, "tiddler"), "Make a story tiddler"]));
+		}
+	}
+	if (box.firstChild) {
+		panel.appendChild(box);
+	}
 };
 
 /*
@@ -218,55 +277,6 @@ methods.renderStorySettings = function(panel, story) {
 			oninput: function() { self.setStoryProperty("width", Number(width.value), true); },
 			onchange: function() { self.setStoryProperty("width", Number(width.value)); }});
 		popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Thread"}), color, width]));
-	}
-	if (story.tiddler || (editable && this.graph.store)) {
-		// The story tiddler: its name, free to choose before and after it
-		// is made.
-		// What is typed survives the panel being rebuilt meanwhile.
-		var draft = this.storyTiddlerDraft && this.storyTiddlerDraft.id === story.id ? this.storyTiddlerDraft.value : null;
-		var tiddlerName = Dom.el(doc, "input", {"class": "pb-input pb-story-tiddler-name", type: "text",
-			value: draft !== null ? draft : (story.tiddler || ""), placeholder: this.defaultStoryTiddler(story), readOnly: !editable,
-			title: story.tiddler ? "Name of the story tiddler (renaming it keeps it tied to this story)" : "Name for the story tiddler",
-			oninput: function() {
-				self.storyNameError = null;
-				self.storyTiddlerDraft = {id: story.id, value: tiddlerName.value};
-			},
-			onblur: function() {
-				if (self.rebuildingSteps) {
-					return;
-				}
-				var value = tiddlerName.value.trim();
-				self.storyTiddlerDraft = null;
-				if (story.tiddler && value && value !== story.tiddler) {
-					setTimeout(function() { self.renameStoryTiddler(story, value); }, 0);
-				}
-			},
-			onkeydown: function(event) {
-				if (event.key === "Enter") {
-					if (story.tiddler) {
-						tiddlerName.blur();
-					} else {
-						self.createStoryTiddler(tiddlerName.value.trim());
-					}
-				}
-			}});
-		popup.appendChild(Dom.el(doc, "label", {"class": "pb-story-field"}, [Dom.el(doc, "span", {text: "Tiddler"}), tiddlerName]));
-		if (this.storyNameError) {
-			popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-error", text: this.storyNameError}));
-		}
-		if (story.tiddler) {
-			popup.appendChild(Dom.el(doc, "div", {"class": "pb-story-field pb-story-buttons"}, [
-				Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-					title: "Open the story's cards in order in the story river",
-					onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open story"]),
-				Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
-					onclick: function(event) { self.leaveFullscreen(); self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), "Show tiddler"])
-			]));
-		} else {
-			popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-				title: "Keep this story as a tiddler: its story field holds the cards in order, as an outline for the rest of the wiki",
-				onclick: function() { self.createStoryTiddler(tiddlerName.value.trim()); }}, [Dom.icon(doc, "tiddler"), "Make a story tiddler"]));
-		}
 	}
 	if (editable && data.stories.length > 1) {
 		popup.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon pb-story-delete", type: "button",

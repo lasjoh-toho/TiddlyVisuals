@@ -381,7 +381,8 @@ it("dives into the board of a card, but never into a board already open", functi
 		{title: "$:/graph/Map/A", filter: "[[B]]"},
 		{title: "A", "pinboard-dive": "$:/graph/Map/A"},
 		{title: "B", "pinboard-dive": "$:/graph/Map"},
-		{title: "C", "pinboard-dive": "Missing"}]);
+		{title: "C", "pinboard-dive": "Missing"},
+		{title: "Loop"}]);
 	var board = function(store) {
 		var engine = Object.create(Cards);
 		engine.wiki = wiki;
@@ -398,6 +399,14 @@ it("dives into the board of a card, but never into a board already open", functi
 	expect(inner.diveTarget("B")).toEqual({title: "$:/graph/Map", open: true});
 	inner.dive("B");
 	expect(wiki.getTiddlerList("$:/state/dive")).toEqual(["$:/graph/Map", "$:/graph/Map/A"]);
+	// Choosing the board in the card menu: never a board open on the way here.
+	inner.syncCard = function() {};
+	inner.setDive("Loop", "$:/graph/Map");
+	expect(wiki.getTiddler("Loop").fields["pinboard-dive"]).toBeUndefined();
+	inner.setDive("Loop", "$:/graph/Other");
+	expect(wiki.getTiddler("Loop").fields["pinboard-dive"]).toBe("$:/graph/Other");
+	inner.setDive("Loop", null);
+	expect(wiki.getTiddler("Loop").fields["pinboard-dive"]).toBeUndefined();
 	// Without a dive state (a graph written by hand), cards have no dive button.
 	var plain = board("$:/graph/Map");
 	plain.graph.diveState = undefined;

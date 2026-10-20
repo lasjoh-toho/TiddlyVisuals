@@ -1146,6 +1146,11 @@ methods.buildSteps = function() {
 				title: "Download a self-contained HTML file that plays this presentation anywhere",
 				onclick: function() { self.downloadPresentation(); }})
 		]));
+		panel.appendChild(Dom.el(doc, "div", {"class": "pb-popup-foot"}, [
+			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+				title: "Open the story's tiddlers in order in the story river (the story tiddler first, if there is one); no story tiddler is needed",
+				onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open as story"])
+		]));
 	}
 };
 
