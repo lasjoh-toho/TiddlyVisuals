@@ -128,11 +128,17 @@ methods.syncCard = function(id) {
 	card.el.style.setProperty("--pb-present-shift", ((card.w - Math.max(card.w, PRESENT_WIDTH)) / 2) + "px");
 	// Tools
 	var editable = this.isEditable();
+	card.deleteBtn.style.display = this.can("nodes", id, "delete") ? "" : "none";
+	card.fieldsBtn.style.display = editable ? "" : "none";
 	card.stepBtn.style.display = editable ? "" : "none";
-	card.moreBtn.style.display = editable || this.can("nodes", id, "delete") ? "" : "none";
-	$tw.utils.toggleClass(card.moreBtn, "pb-active", !!(stored.build || stored.exit));
+	card.effectsBtn.style.display = editable ? "" : "none";
+	$tw.utils.toggleClass(card.effectsBtn, "pb-active", !!(stored.build || stored.exit));
+	card.boardBtn.style.display = editable && this.graph.store ? "" : "none";
+	var tiddler = this.wiki.getTiddler(id);
+	$tw.utils.toggleClass(card.boardBtn, "pb-active", !!(tiddler && tiddler.fields["pinboard-dive"]));
 	card.resize.style.display = editable ? "" : "none";
 	card.connector.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
+	card.linkBtn.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
 	var dive = this.diveTarget(id);
 	card.diveBtn.style.display = dive ? "" : "none";
 	card.diveBtn.disabled = !!(dive && dive.open);
@@ -193,16 +199,23 @@ methods.createCard = function(id) {
 	card.head = Dom.el(doc, "div", {"class": "pb-card-head"}, [card.label]);
 	card.body = Dom.el(doc, "div", {"class": "pb-card-body"});
 	card.present = Dom.el(doc, "div", {"class": "pb-card-body pb-card-present"});
+	card.deleteBtn = Dom.button(doc, "trash", "Remove from board", function(e) {
+		self.fire("nodes", id, "delete", e);
+	});
+	card.fieldsBtn = Dom.button(doc, "fields", "Choose shown fields", function() {
+		self.openChooser(id, "fields");
+	});
+	card.linkBtn = Dom.button(doc, "link", "Link to another card (then click the other card)", function() {
+		self.startLinking(id);
+	});
 	card.stepBtn = Dom.button(doc, "addstep", "Add to presentation path", function() {
 		self.addStep({kind: "card", ref: id});
 	});
-	// Everything else is in the card menu, so the tools stay narrow.
-	card.moreBtn = Dom.button(doc, "more", "More: fields, link, appear / disappear, leads into board, remove", function() {
-		if (self.chooser && self.chooser.id === id && self.chooser.kind === "menu") {
-			self.closeChooser();
-		} else {
-			self.openChooser(id, "menu");
-		}
+	card.effectsBtn = Dom.button(doc, "eye", "Appear / disappear during the presentation", function() {
+		self.openEffects("c:" + id);
+	});
+	card.boardBtn = Dom.button(doc, "map", "Leads into board: choose the board this card dives into", function() {
+		self.openChooser(id, "dive");
 	});
 	card.diveBtn = Dom.button(doc, "dive", "Dive into the card's board", function() {
 		self.dive(id);
@@ -211,7 +224,11 @@ methods.createCard = function(id) {
 		card.diveBtn,
 		Dom.button(doc, "expand", "View tiddler", function() { self.openModal(id); }),
 		card.stepBtn,
-		card.moreBtn
+		card.fieldsBtn,
+		card.linkBtn,
+		card.effectsBtn,
+		card.boardBtn,
+		card.deleteBtn
 	]);
 	card.resize = Dom.el(doc, "div", {"class": "pb-card-resize", "data-pb-card-part": "resize", title: "Resize"});
 	card.connector = Dom.el(doc, "div", {"class": "pb-card-connector", "data-pb-card-part": "connect", title: "Drag to another card to connect"});
@@ -563,8 +580,8 @@ methods.startCardPartGesture = function(start, id, part) {
 /*** Field chooser ***/
 
 /*
-The popup next to a card: `kind` is "fields" (which fields it shows), "menu"
-(the card menu) or "dive" (which board the card leads into).
+The popup next to a card: `kind` is "fields" (which fields it shows) or
+"dive" (which board the card leads into).
 */
 methods.openChooser = function(id, kind) {
 	this.closeChooser();
@@ -583,9 +600,6 @@ methods.closeChooser = function() {
 };
 
 methods.renderChooser = function() {
-	if (this.chooser.kind === "menu") {
-		return this.renderCardMenu();
-	}
 	if (this.chooser.kind === "dive") {
 		return this.renderDiveChooser();
 	}
@@ -647,44 +661,6 @@ methods.renderChooser = function() {
 		Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: custom ? "Reset to default" : "Using default", disabled: custom ? undefined : true,
 			onclick: function() { setFields(null); }})
 	]));
-};
-
-/*** Card menu ***/
-
-methods.renderCardMenu = function() {
-	var self = this, doc = this.document;
-	var id = this.chooser.id, el = this.chooser.el;
-	var editable = this.isEditable();
-	var stored = this.data.cards[id] || {};
-	var item = function(icon, label, onclick, extra) {
-		extra = extra || {};
-		return Dom.el(doc, "button", {"class": "pb-card-menu-item" + (extra.cls ? " " + extra.cls : ""), type: "button", title: extra.title || label,
-			disabled: extra.disabled ? true : undefined, onclick: onclick},
-			[Dom.icon(doc, icon), Dom.el(doc, "span", {text: label}), extra.sub ? Dom.el(doc, "span", {"class": "pb-sub", text: extra.sub}) : null]);
-	};
-	var tiddler = this.wiki.getTiddler(id);
-	var target = tiddler && tiddler.fields["pinboard-dive"];
-	Dom.clear(el);
-	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-head"}, [
-		Dom.el(doc, "strong", {text: id}),
-		Dom.button(doc, "close", "Close", function() { self.closeChooser(); }, "pb-btn-small")
-	]));
-	if (editable) {
-		el.appendChild(item("fields", "Shown fields \u2026", function() { self.openChooser(id, "fields"); }));
-		if (this.can("graph", null, "addEdge")) {
-			el.appendChild(item("link", "Link to another card", function() { self.closeChooser(); self.startLinking(id); },
-				{title: "Then click the other card"}));
-		}
-		el.appendChild(item("eye", "Appear / disappear \u2026", function() { self.closeChooser(); self.openEffects("c:" + id); },
-			{sub: stored.build || stored.exit ? "set" : ""}));
-		if (this.graph.store) {
-			el.appendChild(item("dive", "Leads into board \u2026", function() { self.openChooser(id, "dive"); },
-				{sub: target ? boardName(target) : "", title: "Choose the board this card leads into (dive button on the card)"}));
-		}
-	}
-	if (this.can("nodes", id, "delete")) {
-		el.appendChild(item("trash", "Remove from board", function(e) { self.closeChooser(); self.fire("nodes", id, "delete", e); }, {cls: "pb-danger"}));
-	}
 };
 
 /*** Which board a card leads into ***/

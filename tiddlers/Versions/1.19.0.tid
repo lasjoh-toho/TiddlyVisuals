@@ -1,0 +1,8 @@
+created: 20261020220000000
+
+Pinboard 0.8.0:
+
+* Card tools are icons again, in two rows right on the card's top edge, so the pointer reaches them without leaving the card: view, add to path, fields, link, appear/disappear, ''leads into board'' (map icon), remove.
+* ''+ Object'' in the path panel adds the selected card or shape, or – with nothing selected – the cards and shapes clicked next (Esc ends). ''Frame ▾'' offers ''Current view'' and ''Draw''.
+* The story tiddler can be an existing tiddler: type its name and ''Use this tiddler''. If it already holds a story, you are asked before it is replaced; its text stays.
+* ''Open as story'' sits next to the story tiddler's buttons and needs no story tiddler.

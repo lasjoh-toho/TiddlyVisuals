@@ -240,10 +240,12 @@ type: text/vnd.tiddlywiki
 	position: absolute;
 	right: 0;
 	bottom: 100%;
-	display: flex;
+	/* Two rows of icons, right on the card's edge: the pointer never leaves the card on its way there. */
+	display: grid;
+	grid-template-columns: repeat(4, auto);
 	gap: 2px;
 	padding: 2px;
-	margin-bottom: 6px;
+	margin-bottom: 0;
 	transform: scale(var(--pb-inv));
 	transform-origin: bottom right;
 	background: var(--pb-panel);
@@ -1467,3 +1469,19 @@ html:has(.pb-root.pb-fullscreen) .tc-topbar { display: none; }
 .pb-dive-list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }
 .pb-dive-new { display: flex; gap: 6px; margin-top: 6px; }
 .pb-dive-new .pb-input { flex: 1; min-width: 0; }
+.pb-path-adds { position: relative; }
+.pb-frame-wrap { position: relative; display: inline-flex; }
+.pb-frame-menu {
+	position: absolute;
+	bottom: calc(100% + 4px);
+	left: 0;
+	z-index: 5;
+	min-width: 150px;
+	padding: 4px;
+	background: var(--pb-panel);
+	border: 1px solid var(--pb-border);
+	border-radius: 8px;
+	box-shadow: 0 6px 18px rgba(0,0,0,.14);
+}
+.pb-root.pb-picking .pb-card, .pb-root.pb-picking [data-pb-shape] { cursor: copy; }
+.pb-story-tiddler .pb-story-buttons { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }

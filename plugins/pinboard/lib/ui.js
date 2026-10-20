@@ -1006,6 +1006,39 @@ methods.renderLayers = function() {
 	}
 };
 
+/*
+"+ Object": the selected card or shape joins the path; with nothing
+selected, the next clicked cards and shapes do (until Esc or the button).
+*/
+methods.addObjectStop = function() {
+	var sel = this.selection;
+	if (sel && (sel.type === "card" || sel.type === "shape")) {
+		this.pickingStops = false;
+		this.addStepFor(sel);
+		return;
+	}
+	this.setPickingStops(!this.pickingStops);
+};
+
+methods.setPickingStops = function(on) {
+	this.pickingStops = !!on;
+	this.showHint(on ? "Click cards or shapes to add them to the path \u2013 Esc ends" : "");
+	$tw.utils.toggleClass(this.root, "pb-picking", !!on);
+	this.renderSteps && this.renderSteps();
+};
+
+/* A card or shape (frames as frames) as a stop. */
+methods.addStepFor = function(sel) {
+	if (sel.type === "card") {
+		this.addStep({kind: "card", ref: sel.id});
+	} else {
+		var shape = Model.findShape(this.data, sel.id);
+		if (shape) {
+			this.addStep({kind: shape.type === "frame" ? "frame" : "shape", ref: shape.id});
+		}
+	}
+};
+
 methods.addStep = function(step) {
 	if (!this.isEditable()) {
 		return;
@@ -1126,16 +1159,33 @@ methods.buildSteps = function() {
 			steps.splice(to, 0, item);
 			self.commit();
 		});
-		panel.appendChild(Dom.el(doc, "div", {"class": "pb-popup-foot"}, [
-			Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "+ Current view",
+		// Frame: the current view, or draw one (F).
+		var frameMenu = Dom.el(doc, "div", {"class": "pb-frame-menu", style: {display: self.frameMenuOpen ? "" : "none"}}, [
+			Dom.el(doc, "button", {"class": "pb-card-menu-item", type: "button", title: "The part of the board shown now becomes a stop",
 				onclick: function() {
+					self.frameMenuOpen = false;
 					var size = self.viewSize();
 					var v = Model.viewRect(self.camera, size.w, size.h);
 					self.addStep({kind: "view", x: Math.round(v.x), y: Math.round(v.y), w: Math.round(v.w), h: Math.round(v.h)});
-				}}),
-			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon" + (self.tool === "frame" ? " pb-textbtn-primary" : ""), type: "button",
-				title: "Presentation frame (F): drag a rectangle; each frame becomes a stop",
-				onclick: function() { self.setTool(self.tool === "frame" ? "select" : "frame"); }}, [Dom.icon(doc, "frame"), "Frame"])
+				}}, [Dom.icon(doc, "fit"), Dom.el(doc, "span", {text: "Current view"})]),
+			Dom.el(doc, "button", {"class": "pb-card-menu-item", type: "button", title: "Presentation frame (F): drag a rectangle; each frame becomes a stop",
+				onclick: function() {
+					self.frameMenuOpen = false;
+					self.setTool(self.tool === "frame" ? "select" : "frame");
+				}}, [Dom.icon(doc, "frame"), Dom.el(doc, "span", {text: "Draw"})])
+		]);
+		var sel = self.selection && (self.selection.type === "card" || self.selection.type === "shape") ? self.selection : null;
+		panel.appendChild(Dom.el(doc, "div", {"class": "pb-popup-foot pb-path-adds"}, [
+			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon" + (self.pickingStops ? " pb-textbtn-primary" : ""), type: "button",
+				title: sel ? "Add the selected object to the path" : "Add objects: click cards or shapes on the board, one after the other (Esc ends)",
+				onclick: function() { self.addObjectStop(); }}, [Dom.icon(doc, "addstep"), sel ? "+ Selected" : self.pickingStops ? "Click objects \u2026" : "+ Object"]),
+			Dom.el(doc, "span", {"class": "pb-frame-wrap"}, [
+				Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon" + (self.tool === "frame" ? " pb-textbtn-primary" : ""), type: "button",
+					title: "Add a frame: the current view, or draw one",
+					onclick: function() { self.frameMenuOpen = !self.frameMenuOpen; frameMenu.style.display = self.frameMenuOpen ? "" : "none"; }},
+					[Dom.icon(doc, "frame"), "Frame \u25be"]),
+				frameMenu
+			])
 		]));
 	}
 	if (steps.length > 0) {
@@ -1145,11 +1195,6 @@ methods.buildSteps = function() {
 			Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "Export as HTML",
 				title: "Download a self-contained HTML file that plays this presentation anywhere",
 				onclick: function() { self.downloadPresentation(); }})
-		]));
-		panel.appendChild(Dom.el(doc, "div", {"class": "pb-popup-foot"}, [
-			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-				title: "Open the story's tiddlers in order in the story river (the story tiddler first, if there is one); no story tiddler is needed",
-				onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open as story"])
 		]));
 	}
 };
