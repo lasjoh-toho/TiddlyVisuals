@@ -726,6 +726,15 @@ exports.startToolGesture = function(start, target, interactive) {
 			return null;
 		}
 	}
+	if (this.pickingStops) {
+		// Picking stops for the path: the clicked card or shape joins it.
+		var picked = cardEl ? {type: "card", id: cardEl.getAttribute("data-pb-id")} :
+			Dom.closest(target, "[data-pb-shape]", this.viewport) ? {type: "shape", id: Dom.closest(target, "[data-pb-shape]", this.viewport).getAttribute("data-pb-shape")} : null;
+		if (picked) {
+			this.addStepFor(picked);
+			return null;
+		}
+	}
 	if (handle) {
 		return this.startHandleGesture(start, handle);
 	}
@@ -1105,6 +1114,8 @@ exports.handleKeyDown = function(event) {
 		this.deleteSelection();
 	} else if (this.pathDraft && (key === "Enter" || key === "Escape")) {
 		this.finishPath();
+	} else if (key === "Escape" && this.pickingStops) {
+		this.setPickingStops(false);
 	} else if (key === "Escape") {
 		this.stopLinking();
 		this.select(null);
@@ -1164,6 +1175,10 @@ exports.select = function(selection) {
 	this.renderEdges();
 	this.renderSelection();
 	this.updateUi();
+	// The path panel's "+ Selected" follows the selection.
+	if (this.stepsOpen && this.renderSteps) {
+		this.renderSteps();
+	}
 };
 
 exports.deleteSelection = function() {

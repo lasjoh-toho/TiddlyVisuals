@@ -203,6 +203,9 @@ methods.renderStoryTiddler = function(panel, story) {
 			oninput: function() {
 				self.storyNameError = null;
 				self.storyTiddlerDraft = {id: story.id, value: tiddlerName.value};
+				if (makeBtn) {
+					makeBtn.lastChild.textContent = self.wiki.tiddlerExists(tiddlerName.value.trim()) ? "Use this tiddler" : "Make a story tiddler";
+				}
 			},
 			onblur: function() {
 				if (self.rebuildingSteps) {
@@ -227,14 +230,27 @@ methods.renderStoryTiddler = function(panel, story) {
 		if (this.storyNameError) {
 			box.appendChild(Dom.el(doc, "div", {"class": "pb-story-error", text: this.storyNameError}));
 		}
+		var makeBtn = null;
+		var row = Dom.el(doc, "div", {"class": "pb-story-buttons"});
 		if (story.tiddler) {
-			box.appendChild(Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
+			row.appendChild(Dom.el(doc, "button", {"class": "pb-story-link", type: "button", title: "Show the story tiddler",
 				onclick: function(event) { self.leaveFullscreen(); self.navigate(story.tiddler, event); }}, [Dom.icon(doc, "tiddler"), "Show tiddler"]));
-		} else {
-			box.appendChild(Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
-				title: "Keep this story as a tiddler: its story field holds the cards in order, as an outline for the rest of the wiki",
-				onclick: function() { self.createStoryTiddler(tiddlerName.value.trim()); }}, [Dom.icon(doc, "tiddler"), "Make a story tiddler"]));
+		} else if (editable) {
+			var typed = (draft !== null ? draft : "").trim();
+			makeBtn = Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+				title: "Keep this story in a tiddler: a new one, or the existing tiddler named above (its story field then holds the cards in order)",
+				onclick: function() { self.createStoryTiddler(tiddlerName.value.trim()); }},
+				[Dom.icon(doc, "tiddler"), Dom.el(doc, "span", {text: typed && this.wiki.tiddlerExists(typed) ? "Use this tiddler" : "Make a story tiddler"})]);
+			row.appendChild(makeBtn);
 		}
+		box.appendChild(row);
+	}
+	if (story.steps && story.steps.length) {
+		// Open the story without needing a story tiddler.
+		(box.lastChild && box.lastChild.className === "pb-story-buttons" ? box.lastChild : box.appendChild(Dom.el(doc, "div", {"class": "pb-story-buttons"}))).appendChild(
+			Dom.el(doc, "button", {"class": "pb-textbtn pb-textbtn-icon", type: "button",
+				title: "Open the story's tiddlers in order in the story river (the story tiddler first, if there is one); no story tiddler is needed",
+				onclick: function(event) { self.openStory(event); }}, [Dom.icon(doc, "open"), "Open as story"]));
 	}
 	if (box.firstChild) {
 		panel.appendChild(box);
@@ -310,12 +326,36 @@ methods.defaultStoryTiddler = function(story) {
 	return board ? board + ": " + base : base;
 };
 
+/*
+Ties the story to a tiddler: a new one, or an existing tiddler named in the
+field. An existing tiddler that already holds a story (a `story` field) is
+only overwritten after asking.
+*/
 methods.createStoryTiddler = function(name) {
 	var story = Model.activeStory(this.data);
+	var title = name || this.defaultStoryTiddler(story);
+	var existing = this.wiki.getTiddler(title);
+	if (existing) {
+		var taken = (this.data.stories || []).some(function(s) { return s !== story && s.tiddler === title; });
+		if (taken) {
+			this.storyNameError = "\u201c" + title + "\u201d is the tiddler of another story of this board.";
+			this.renderSteps();
+			return;
+		}
+		if (existing.fields.story && !this.window.confirm("\u201c" + title + "\u201d already holds a story. Replace it with this one?")) {
+			return;
+		}
+	} else if (!name) {
+		title = this.wiki.generateNewTitle(title);
+	}
 	this.storyTiddlerDraft = null;
 	this.checkpoint();
-	story.tiddler = this.wiki.generateNewTitle(name || this.defaultStoryTiddler(story));
+	story.tiddler = title;
 	this.syncStoryTiddler(story, true);
+	if (existing) {
+		// An existing tiddler keeps its text; it only learns its board.
+		this.wiki.addTiddler(new $tw.Tiddler(this.wiki.getTiddler(title), {"pinboard-board": this.graph.store}));
+	}
 	this.commit();
 };
 
