@@ -3,7 +3,7 @@
 	"title": "$:/plugins/lasjoh-toho/pinboard",
 	"description": "Infinite canvas engine for TW5-Graph: cards, drawings and immersive presentations",
 	"author": "lasjoh-toho",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"stability": "STABILITY_1_EXPERIMENTAL",
 	"core-version": ">=5.3.7",
 	"source": "https://github.com/lasjoh-toho/TiddlyVisuals",

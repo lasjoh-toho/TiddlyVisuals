@@ -136,9 +136,57 @@ methods.syncCard = function(id) {
 	card.resize.style.display = editable ? "" : "none";
 	card.connector.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
 	card.linkBtn.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
+	var dive = this.diveTarget(id);
+	card.diveBtn.style.display = dive ? "" : "none";
+	card.diveBtn.disabled = !!(dive && dive.open);
+	card.diveBtn.title = dive && dive.open ? "Already open above: " + dive.title : "Dive into " + (dive ? dive.title : "");
+	$tw.utils.toggleClass(card.el, "pb-divable", !!(dive && !dive.open));
 	if (this.chooser && this.chooser.id === id) {
 		this.renderChooser();
 	}
+};
+
+/*
+Boards being looked at, from the outermost: the graph's own store first,
+then the boards dived into (kept in the diveState tiddler's list).
+*/
+methods.diveChain = function() {
+	var list = this.graph.diveState ? this.wiki.getTiddlerList(this.graph.diveState) : [];
+	return list.length ? list : (this.graph.store ? [this.graph.store] : []);
+};
+
+/*
+The board a card leads into (its tiddler's `pinboard-dive` field), or null.
+`open` is set when that board is already on the way here, so diving would
+nest a board in itself.
+*/
+methods.diveTarget = function(id) {
+	if (!this.graph.diveState || !this.graph.store) {
+		return null;
+	}
+	var tiddler = this.wiki.getTiddler(id),
+		title = tiddler && tiddler.fields["pinboard-dive"];
+	if (!title || !this.wiki.tiddlerExists(title)) {
+		return null;
+	}
+	return {title: title, open: title === id || this.diveChain().indexOf(title) >= 0};
+};
+
+/*
+Shows the card's board in place of this one; the breadcrumb of the
+Pinboard template leads back.
+*/
+methods.dive = function(id) {
+	var target = this.diveTarget(id);
+	if (!target || target.open) {
+		return;
+	}
+	var chain = this.diveChain();
+	// A list from another board (the state is per template instance) starts over.
+	if (chain[chain.length - 1] !== this.graph.store) {
+		chain = [this.graph.store];
+	}
+	this.wiki.addTiddler(new $tw.Tiddler({title: this.graph.diveState, list: chain.concat(target.title)}));
 };
 
 methods.createCard = function(id) {
@@ -163,7 +211,11 @@ methods.createCard = function(id) {
 	card.effectsBtn = Dom.button(doc, "eye", "Appear / disappear during the presentation", function() {
 		self.openEffects("c:" + id);
 	});
+	card.diveBtn = Dom.button(doc, "dive", "Dive into the card's board", function() {
+		self.dive(id);
+	});
 	card.tools = Dom.el(doc, "div", {"class": "pb-card-tools pb-chrome"}, [
+		card.diveBtn,
 		Dom.button(doc, "expand", "View tiddler", function() { self.openModal(id); }),
 		card.fieldsBtn,
 		card.linkBtn,

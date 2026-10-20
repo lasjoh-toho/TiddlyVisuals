@@ -5,7 +5,32 @@ list-after: $:/plugins/flibbles/graph/templates/live-graph
 
 \whitespace trim
 
-<$graph $engine="Pinboard" store=<<currentTiddler>> >
+<$let
+	pbDiveState=<<qualify "$:/state/pinboard/dive">>
+	pbChain={{{ [<pbDiveState>get[list]] }}}
+	pbBoard={{{ [enlist<pbChain>last[]] ~[<currentTiddler>] }}} >
+
+<%if [enlist<pbChain>first[]match<currentTiddler>] :and[enlist<pbChain>count[]compare:number:gt[1]] %>
+
+<div class="pb-dive-crumbs">
+<$list filter="[enlist<pbChain>]" counter="pbIndex" variable="pbCrumb">
+<%if [<pbIndex-first>!match[yes]] %><span class="pb-dive-sep">›</span><%endif%>
+<%if [<pbIndex-last>match[yes]] %>
+<span class="pb-dive-here"><$text text={{{ [<pbCrumb>removeprefix[$:/graph/]split[/]last[]] ~[<pbCrumb>] }}}/></span>
+<%else%>
+<$button class="tc-btn-invisible pb-dive-up" tooltip={{{ [[Back to ]addsuffix<pbCrumb>] }}}>
+<$action-listops $tiddler=<<pbDiveState>> $field="list" $filter="[enlist<pbChain>first<pbIndex>]"/>
+<$text text={{{ [<pbCrumb>removeprefix[$:/graph/]split[/]last[]] ~[<pbCrumb>] }}}/>
+</$button>
+<%endif%>
+</$list>
+</div>
+
+<%endif%>
+
+<$tiddler tiddler={{{ [enlist<pbChain>first[]match<currentTiddler>then<pbBoard>] ~[<currentTiddler>] }}} >
+
+<$graph $engine="Pinboard" store=<<currentTiddler>> diveState=<<pbDiveState>> >
 
 <%if [{!!filter}is[blank]] %>
 
@@ -33,3 +58,5 @@ list-after: $:/plugins/flibbles/graph/templates/live-graph
 </$properties.settings>
 </$properties.persistent>
 </$graph>
+</$tiddler>
+</$let>

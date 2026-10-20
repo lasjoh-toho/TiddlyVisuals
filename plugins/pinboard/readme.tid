@@ -57,6 +57,10 @@ Selected shapes can be recolored, resized, rotated, moved with the arrow keys, s
 
 ''Layers'' (presentation menu) lists every drawing, shape, note and frame from top to bottom, with the cards in between. Drag a row's grip to restack it, past the cards to move it behind or in front of them; the eye hides it from board and presentation.
 
+!! Boards inside boards
+
+A card whose tiddler has a `pinboard-dive` field naming another board tiddler leads into that board: its card looks like a little stack, and the first tool on hover (''dive'') shows that board in place of this one, with a breadcrumb above it (`Map › Start › …`) to go back up. Each board keeps its own positions and drawings. A card that leads to a board already open above it (directly or further up) cannot be dived into — its dive button is greyed out — so boards never nest inside themselves. Diving needs the Pinboard template; the template keeps the path in a state tiddler (`$:/state/pinboard/dive…`, the graph property `diveState`).
+
 !! Presenting
 
 Frames join the presentation path automatically. Cards, shapes and the current view can be added from their tools (play button in a circle) or the path panel (list icon, top right), where stops are reordered by dragging their grip. ▶ starts the presentation: fullscreen, camera flights between stops.
