@@ -1,0 +1,8 @@
+created: 20261020200000000
+
+Pinboard 0.7.0:
+
+* ''Open as story'' (bottom of the path panel) puts the story's tiddlers in order into the story river, also without a story tiddler.
+* The story tiddler's ''Tiddler'' field now sits right under the story's name: name it before making it (Enter or ''Make a story tiddler''), rename it later and it stays tied to the story.
+* ''Leads into board'' in the new card menu (⋯): pick the board a card dives into, or make a new empty one named after the card. Boards open above are greyed out.
+* Narrower card tools: view, add to path and ⋯ (shown fields, link, appear/disappear, leads into board, remove).

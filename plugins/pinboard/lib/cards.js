@@ -128,14 +128,11 @@ methods.syncCard = function(id) {
 	card.el.style.setProperty("--pb-present-shift", ((card.w - Math.max(card.w, PRESENT_WIDTH)) / 2) + "px");
 	// Tools
 	var editable = this.isEditable();
-	card.deleteBtn.style.display = this.can("nodes", id, "delete") ? "" : "none";
-	card.fieldsBtn.style.display = editable ? "" : "none";
 	card.stepBtn.style.display = editable ? "" : "none";
-	card.effectsBtn.style.display = editable ? "" : "none";
-	$tw.utils.toggleClass(card.effectsBtn, "pb-active", !!(stored.build || stored.exit));
+	card.moreBtn.style.display = editable || this.can("nodes", id, "delete") ? "" : "none";
+	$tw.utils.toggleClass(card.moreBtn, "pb-active", !!(stored.build || stored.exit));
 	card.resize.style.display = editable ? "" : "none";
 	card.connector.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
-	card.linkBtn.style.display = editable && this.can("graph", null, "addEdge") ? "" : "none";
 	var dive = this.diveTarget(id);
 	card.diveBtn.style.display = dive ? "" : "none";
 	card.diveBtn.disabled = !!(dive && dive.open);
@@ -196,20 +193,16 @@ methods.createCard = function(id) {
 	card.head = Dom.el(doc, "div", {"class": "pb-card-head"}, [card.label]);
 	card.body = Dom.el(doc, "div", {"class": "pb-card-body"});
 	card.present = Dom.el(doc, "div", {"class": "pb-card-body pb-card-present"});
-	card.deleteBtn = Dom.button(doc, "trash", "Remove from board", function(e) {
-		self.fire("nodes", id, "delete", e);
-	});
-	card.fieldsBtn = Dom.button(doc, "fields", "Choose shown fields", function(e) {
-		self.openChooser(id);
-	});
-	card.linkBtn = Dom.button(doc, "link", "Link to another card (then click the other card)", function() {
-		self.startLinking(id);
-	});
 	card.stepBtn = Dom.button(doc, "addstep", "Add to presentation path", function() {
 		self.addStep({kind: "card", ref: id});
 	});
-	card.effectsBtn = Dom.button(doc, "eye", "Appear / disappear during the presentation", function() {
-		self.openEffects("c:" + id);
+	// Everything else is in the card menu, so the tools stay narrow.
+	card.moreBtn = Dom.button(doc, "more", "More: fields, link, appear / disappear, leads into board, remove", function() {
+		if (self.chooser && self.chooser.id === id && self.chooser.kind === "menu") {
+			self.closeChooser();
+		} else {
+			self.openChooser(id, "menu");
+		}
 	});
 	card.diveBtn = Dom.button(doc, "dive", "Dive into the card's board", function() {
 		self.dive(id);
@@ -217,11 +210,8 @@ methods.createCard = function(id) {
 	card.tools = Dom.el(doc, "div", {"class": "pb-card-tools pb-chrome"}, [
 		card.diveBtn,
 		Dom.button(doc, "expand", "View tiddler", function() { self.openModal(id); }),
-		card.fieldsBtn,
-		card.linkBtn,
 		card.stepBtn,
-		card.effectsBtn,
-		card.deleteBtn
+		card.moreBtn
 	]);
 	card.resize = Dom.el(doc, "div", {"class": "pb-card-resize", "data-pb-card-part": "resize", title: "Resize"});
 	card.connector = Dom.el(doc, "div", {"class": "pb-card-connector", "data-pb-card-part": "connect", title: "Drag to another card to connect"});
@@ -572,10 +562,14 @@ methods.startCardPartGesture = function(start, id, part) {
 
 /*** Field chooser ***/
 
-methods.openChooser = function(id) {
+/*
+The popup next to a card: `kind` is "fields" (which fields it shows), "menu"
+(the card menu) or "dive" (which board the card leads into).
+*/
+methods.openChooser = function(id, kind) {
 	this.closeChooser();
 	this.closeEffects && this.closeEffects();
-	this.chooser = {id: id, el: Dom.el(this.document, "div", {"class": "pb-popup pb-chooser pb-chrome"})};
+	this.chooser = {id: id, kind: kind || "fields", el: Dom.el(this.document, "div", {"class": "pb-popup pb-chooser pb-chrome"})};
 	this.root.appendChild(this.chooser.el);
 	this.renderChooser();
 	this.positionPopups();
@@ -589,6 +583,12 @@ methods.closeChooser = function() {
 };
 
 methods.renderChooser = function() {
+	if (this.chooser.kind === "menu") {
+		return this.renderCardMenu();
+	}
+	if (this.chooser.kind === "dive") {
+		return this.renderDiveChooser();
+	}
 	var self = this, doc = this.document;
 	var id = this.chooser.id;
 	var el = this.chooser.el;
@@ -647,6 +647,113 @@ methods.renderChooser = function() {
 		Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: custom ? "Reset to default" : "Using default", disabled: custom ? undefined : true,
 			onclick: function() { setFields(null); }})
 	]));
+};
+
+/*** Card menu ***/
+
+methods.renderCardMenu = function() {
+	var self = this, doc = this.document;
+	var id = this.chooser.id, el = this.chooser.el;
+	var editable = this.isEditable();
+	var stored = this.data.cards[id] || {};
+	var item = function(icon, label, onclick, extra) {
+		extra = extra || {};
+		return Dom.el(doc, "button", {"class": "pb-card-menu-item" + (extra.cls ? " " + extra.cls : ""), type: "button", title: extra.title || label,
+			disabled: extra.disabled ? true : undefined, onclick: onclick},
+			[Dom.icon(doc, icon), Dom.el(doc, "span", {text: label}), extra.sub ? Dom.el(doc, "span", {"class": "pb-sub", text: extra.sub}) : null]);
+	};
+	var tiddler = this.wiki.getTiddler(id);
+	var target = tiddler && tiddler.fields["pinboard-dive"];
+	Dom.clear(el);
+	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-head"}, [
+		Dom.el(doc, "strong", {text: id}),
+		Dom.button(doc, "close", "Close", function() { self.closeChooser(); }, "pb-btn-small")
+	]));
+	if (editable) {
+		el.appendChild(item("fields", "Shown fields \u2026", function() { self.openChooser(id, "fields"); }));
+		if (this.can("graph", null, "addEdge")) {
+			el.appendChild(item("link", "Link to another card", function() { self.closeChooser(); self.startLinking(id); },
+				{title: "Then click the other card"}));
+		}
+		el.appendChild(item("eye", "Appear / disappear \u2026", function() { self.closeChooser(); self.openEffects("c:" + id); },
+			{sub: stored.build || stored.exit ? "set" : ""}));
+		if (this.graph.store) {
+			el.appendChild(item("dive", "Leads into board \u2026", function() { self.openChooser(id, "dive"); },
+				{sub: target ? boardName(target) : "", title: "Choose the board this card leads into (dive button on the card)"}));
+		}
+	}
+	if (this.can("nodes", id, "delete")) {
+		el.appendChild(item("trash", "Remove from board", function(e) { self.closeChooser(); self.fire("nodes", id, "delete", e); }, {cls: "pb-danger"}));
+	}
+};
+
+/*** Which board a card leads into ***/
+
+var BOARD_FILTER = "[all[tiddlers]field:template[$:/plugins/lasjoh-toho/pinboard/templates/pinboard]!is[draft]sort[]]";
+
+function boardName(title) {
+	var short = title.indexOf("$:/graph/") === 0 ? title.substr(9) : title;
+	return short || title;
+}
+
+/*
+Sets (or, with no target, removes) the card's `pinboard-dive` field. A board
+already open on the way here cannot be chosen: boards never nest in themselves.
+*/
+methods.setDive = function(id, target) {
+	var tiddler = this.wiki.getTiddler(id);
+	if (!tiddler) {
+		return;
+	}
+	if (target && (target === id || this.diveChain().indexOf(target) >= 0 || target === this.graph.store)) {
+		return;
+	}
+	this.wiki.addTiddler(new $tw.Tiddler(tiddler, {"pinboard-dive": target || undefined}, this.wiki.getModificationFields()));
+	this.syncCard(id);
+};
+
+methods.renderDiveChooser = function() {
+	var self = this, doc = this.document;
+	var id = this.chooser.id, el = this.chooser.el;
+	var tiddler = this.wiki.getTiddler(id);
+	var current = tiddler && tiddler.fields["pinboard-dive"];
+	var open = this.diveChain().concat(this.graph.store || []);
+	var boards = this.wiki.filterTiddlers(BOARD_FILTER);
+	Dom.clear(el);
+	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-head"}, [
+		Dom.el(doc, "strong", {text: "Leads into board"}),
+		Dom.button(doc, "close", "Close", function() { self.closeChooser(); }, "pb-btn-small")
+	]));
+	el.appendChild(Dom.el(doc, "div", {"class": "pb-popup-sub", text: id}));
+	var list = Dom.el(doc, "div", {"class": "pb-dive-list"});
+	list.appendChild(Dom.el(doc, "button", {"class": "pb-card-menu-item", type: "button", disabled: current ? undefined : true,
+		onclick: function() { self.setDive(id, null); self.renderChooser(); }}, [Dom.icon(doc, "close"), Dom.el(doc, "span", {text: "No board"})]));
+	boards.forEach(function(title) {
+		var blocked = open.indexOf(title) >= 0;
+		list.appendChild(Dom.el(doc, "button", {"class": "pb-card-menu-item" + (title === current ? " pb-active" : ""), type: "button",
+			disabled: blocked ? true : undefined, title: blocked ? "Already open above: a board cannot lie inside itself" : title,
+			onclick: function() { self.setDive(id, title); self.renderChooser(); }},
+			[Dom.icon(doc, title === current ? "dive" : "map"), Dom.el(doc, "span", {text: boardName(title)}), blocked ? Dom.el(doc, "span", {"class": "pb-sub", text: "open"}) : null]));
+	});
+	el.appendChild(list);
+	// A new, empty board for the card (named after it).
+	var name = Dom.el(doc, "input", {"class": "pb-input", type: "text", value: this.wiki.generateNewTitle("$:/graph/" + id),
+		onkeydown: function(e) { if (e.key === "Enter") { create(); } }});
+	var create = function() {
+		var title = name.value.trim();
+		if (!title || open.indexOf(title) >= 0) {
+			return;
+		}
+		if (!self.wiki.tiddlerExists(title)) {
+			self.wiki.addTiddler(new $tw.Tiddler(self.wiki.getCreationFields(), {
+				title: title, template: "$:/plugins/lasjoh-toho/pinboard/templates/pinboard", filter: "", caption: id
+			}, self.wiki.getModificationFields()));
+		}
+		self.setDive(id, title);
+		self.renderChooser();
+	};
+	el.appendChild(Dom.el(doc, "div", {"class": "pb-dive-new"}, [name,
+		Dom.el(doc, "button", {"class": "pb-textbtn", type: "button", text: "New board", onclick: create})]));
 };
 
 var TEXT_MODE_LABELS = {
